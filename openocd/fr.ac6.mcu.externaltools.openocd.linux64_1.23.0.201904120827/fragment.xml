@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<fragment>
+
+<!-- =================================================================================== -->
+<!-- Startup			                                                             	 -->
+<!-- =================================================================================== -->    
+         
+   <extension
+         point="fr.ac6.mcu.externaltools.tools">
+      <Tool_OpenOCD
+            identifier="MCU_OPENOCD_KEY"
+            name="MCU OpenOCD (Linux 64bit)"
+            resource="tools/openocd">
+            <!-- Resource resolved at build time		-->
+            <!-- Such folder is created during build	-->
+      </Tool_OpenOCD>
+      <Local_Env
+            resolver="fr.ac6.mcu.externaltools.MCUUnixLocalEnvResolver">
+      </Local_Env>
+   </extension>
+   
+</fragment>

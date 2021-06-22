@@ -1,0 +1,563 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+<!-- =================================================================================== -->
+<!-- MCU Variables			                                                             -->
+<!-- =================================================================================== -->      
+	<extension
+         point="org.eclipse.core.variables.dynamicVariables">
+    <variable
+          description="Path to the internal openocd scripts root"
+          name="openstm32_openocd_script_root_path"
+          resolver="fr.ac6.mcu.debug.openocd.variables.MCUOpenOCDEnvironmentVariableResolver">
+    </variable>
+    <variable
+          description="Path to the internal openocd legacy scripts root"
+          name="openstm32_openocd_legacy_script_root_path"
+          resolver="fr.ac6.mcu.debug.openocd.variables.MCUOpenOCDEnvironmentVariableResolver">
+    </variable>
+	   <variable
+	       description="Path to the internal openocd ST boards legacy scripts"
+	       name="openstm32_openocd_script_path"
+          resolver="fr.ac6.mcu.debug.openocd.variables.MCUOpenOCDEnvironmentVariableResolver">
+	   </variable>
+	</extension>
+<!-- =================================================================================== -->
+<!-- MCU Launch Configuration Type														 -->
+<!-- =================================================================================== -->	
+	<extension
+         point="org.eclipse.debug.core.launchConfigurationTypes">
+      <launchConfigurationType
+            id="fr.ac6.mcu.debug.config.launchConfigurationType"
+            name="%launch.config.type.name"
+            public="true">
+      </launchConfigurationType>
+  	</extension>
+
+<!-- =================================================================================== -->
+<!-- MCU Launch Configuration Type														 -->
+<!-- =================================================================================== -->	
+	<extension
+         point="org.eclipse.debug.ui.launchConfigurationTypeImages">
+		<launchConfigurationTypeImage
+            configTypeID="fr.ac6.mcu.debug.config.launchConfigurationType"
+            icon="icons/openstm32_icon.png"
+            id="fr.ac6.mcu.debug.config.launchConfigurationImage"/>
+  	</extension>
+
+<!-- =================================================================================== -->
+<!-- MCU Launch Delegate Ac6															 -->
+<!-- =================================================================================== -->
+   <extension point="org.eclipse.debug.core.launchDelegates">
+      <launchDelegate
+            id="fr.ac6.mcu.debug.config.launch"
+            type="fr.ac6.mcu.debug.config.launchConfigurationType"
+            modes="run,debug"
+            delegate="fr.ac6.mcu.debug.launching.MCUGDBJtagDSFLaunchConfigurationDelegate"
+            name="%launch.delegate.name"
+            delegateDescription="%launch.delegate.desc"
+            sourceLocatorId="org.eclipse.cdt.debug.core.sourceLocator"
+            sourcePathComputerId="org.eclipse.cdt.debug.core.sourcePathComputer">
+      </launchDelegate>
+   </extension>
+   
+<!-- =================================================================================== -->
+<!-- MCU Launch Shortcut					  											 -->
+<!-- =================================================================================== -->  
+	<extension
+         point="org.eclipse.debug.ui.launchShortcuts">
+      <shortcut
+            label="%launch.shortcut.name"
+            icon="icons/openstm32_icon.png"
+            modes="debug, run"
+            class="fr.ac6.mcu.debug.launching.DebugLaunchShortcut"
+            id="fr.ac6.mcu.debug.launch.shortcut">
+         <contextualLaunch>
+           <enablement>
+             <with variable="selection">
+               <count value="1"/>
+               <iterate>
+                   <or>
+                     <instanceof value="org.eclipse.cdt.core.model.IBinary"/>
+                     <instanceof value="org.eclipse.cdt.core.model.ICProject"/>
+                     <test
+                           forcePluginActivation="true"
+                           property="org.eclipse.cdt.launch.isExecutable"/>
+                     <test
+                           forcePluginActivation="true"
+                           property="org.eclipse.cdt.launch.isCProject"/>
+                     <and>
+                       <instanceof value="org.eclipse.ui.IFileEditorInput"/>
+                       <adapt type="org.eclipse.core.resources.IResource">
+                         <adapt type="org.eclipse.cdt.core.model.ICElement"/>
+                       </adapt>
+                     </and>
+                   </or>
+               </iterate>
+             </with>
+           </enablement>
+         </contextualLaunch>
+          <enablement>
+            <iterate>
+               <adapt
+                     type="org.eclipse.core.resources.IProject">
+                  <test
+                        property="org.eclipse.core.resources.projectNature"
+                        value="fr.ac6.mcu.ide.core.MCUProjectNature">
+                  </test>
+                  <not>
+                     <test
+                           property="org.eclipse.core.resources.projectNature"
+                           value="fr.ac6.mcu.ide.core.MCUNoDebugDeviceProjectNature">
+                     </test>
+                  </not>
+               </adapt>
+            </iterate>
+         </enablement>
+         <description
+             mode="debug"
+             description="%launch.shortcut.debug.desc"/>
+         <configurationType
+               id="fr.ac6.mcu.debug.config.launchConfigurationType">
+         </configurationType>
+	  </shortcut>
+   </extension> 
+   
+<!-- =================================================================================== -->
+<!-- MCU Process Factory					  											 -->
+<!-- =================================================================================== -->  
+   <extension
+         point="org.eclipse.debug.core.processFactories">
+      <processFactory
+            class="fr.ac6.mcu.debug.launching.MCUGdbProcessFactory"
+            id="fr.ac6.mcu.debug.launching.MCUGdbProcessFactory">
+      </processFactory>
+   </extension>
+   
+   
+<!-- =================================================================================== -->
+<!-- MCU Launch Delegate     type="org.eclipse.cdt.debug.gdbjtag.launchConfigurationType" -->
+<!-- =================================================================================== -->
+   <extension point="org.eclipse.debug.ui.launchConfigurationTabGroups">
+      <launchConfigurationTabGroup 
+			id="fr.ac6.mcu.debug.launch.launchConfigurationTabGroup" 
+			type="fr.ac6.mcu.debug.config.launchConfigurationType" 
+			class="fr.ac6.mcu.debug.ui.MCUGDBJtagLaunchConfigurationTabGroup"/>
+   </extension>  
+   
+<!-- =================================================================================== -->
+<!-- MCU Launch Configuration Tabs													 -->
+<!-- =================================================================================== -->
+   
+<!-- =================================================================================== -->
+<!-- MCU Debug context																	 -->
+<!-- =================================================================================== -->   
+	<extension
+         point="org.eclipse.ui.contexts">
+      <context
+            name="%DebuggingMCUContext.name"
+            description="%DebuggingMCUContext.description"
+            parentId="org.eclipse.debug.ui.debugging"
+            id="fr.ac6.mcu.debug.ui.debugging">
+      </context>
+   </extension>
+   <extension
+         point="org.eclipse.debug.ui.debugModelContextBindings">
+      <modelContextBinding
+            debugModelId="org.eclipse.cdt.debug.core"
+            contextId="fr.ac6.mcu.debug.ui.debugging">
+      </modelContextBinding>
+   </extension>
+   <extension
+         point="org.eclipse.debug.ui.contextViewBindings">
+      <contextViewBinding
+            contextId="fr.ac6.mcu.debug.ui.debugging"
+            viewId="org.eclipse.debug.ui.MemoryView">
+      </contextViewBinding>
+      <contextViewBinding
+            autoOpen="false"
+            contextId="fr.ac6.mcu.debug.ui.debugging"
+            viewId="org.eclipse.cdt.debug.ui.SignalsView">
+      </contextViewBinding>
+      <contextViewBinding
+            contextId="fr.ac6.mcu.debug.ui.debugging"
+            viewId="org.eclipse.debug.ui.RegisterView">
+      </contextViewBinding>
+      <contextViewBinding
+            contextId="fr.ac6.mcu.debug.ui.debugging"
+            viewId="org.eclipse.debug.ui.ModuleView">
+      </contextViewBinding>
+      <contextViewBinding
+            autoOpen="true"
+            contextId="fr.ac6.mcu.debug.ui.debugging"
+            viewId="fr.ac6.mcu.debug.ui.views.periphRegisterView.IORegisterView">
+      </contextViewBinding>
+      <contextViewBinding
+      		autoOpen="true"
+            contextId="fr.ac6.mcu.debug.ui.debugging"
+            viewId="fr.ac6.mcu.debug.ui.views.periphRegisterView.IORegisterDebugView">
+      </contextViewBinding>
+   </extension>
+
+<!-- =================================================================================== -->
+<!-- MCU Register debugger view													 -->
+<!-- =================================================================================== -->
+   <extension
+         point="org.eclipse.ui.views">
+      <!--view
+            name="Peripheral Registers"
+            category="org.eclipse.debug.ui"
+            class="fr.ac6.mcu.debug.ui.views.PeriphRegisterView"
+            id="fr.ac6.mcu.debug.ui.PeriphRegisterView">
+      </view-->
+      <view
+            name="%view.ioregister.name"
+            icon="icons/IOreg_stm32.png"
+            category="org.eclipse.debug.ui"
+            class="fr.ac6.mcu.debug.ui.views.periphRegisterView.IORegisterView"
+            id="fr.ac6.mcu.debug.ui.views.periphRegisterView.IORegisterView">
+      </view>
+      <!--view
+            name="I/O Registers Debug"
+            category="org.eclipse.debug.ui"
+            class="fr.ac6.mcu.debug.ui.views.periphRegisterView.IORegisterDebugView"
+            id="fr.ac6.mcu.debug.ui.views.periphRegisterView.IORegisterDebugView">
+      </view-->
+   </extension>
+   
+  
+   <extension
+         point="org.eclipse.ui.perspectiveExtensions">
+         <perspectiveExtension
+            targetID="org.eclipse.debug.ui.DebugPerspective">
+	         <view
+				relative="org.eclipse.debug.ui.VariableView"
+				visible="true"
+				relationship="stack"
+				id="fr.ac6.mcu.debug.ui.views.periphRegisterView.IORegisterView">
+         	 </view>
+         	 <viewShortcut
+				id="fr.ac6.mcu.debug.ui.views.periphRegisterView.IORegisterView">
+         	 </viewShortcut>
+         </perspectiveExtension>
+   </extension>
+   
+   	<extension
+         point="org.eclipse.debug.core.statusHandlers">
+      <statusHandler
+            class="fr.ac6.mcu.debug.openocd.processanalyzer.logger.OpenOcdStatusProcessHandler"
+            code="666"
+            id="fr.ac6.mcu.debug.openOcdProcessHandler"
+            plugin="fr.ac6.mcu.debug">
+      </statusHandler>
+   </extension>
+   
+<!-- =================================================================================== -->
+<!-- MCU Custom Adapter for GdbLaunch													 -->
+<!-- =================================================================================== -->   
+   <extension point="org.eclipse.core.runtime.adapters">
+      <factory 
+        	class="fr.ac6.mcu.debug.dsf.MCUAdapterFactory" 
+	        adaptableType="fr.ac6.mcu.debug.launching.MCUGdbLaunch">
+         <adapter type="org.eclipse.debug.ui.contexts.ISuspendTrigger"/>
+         <adapter type="org.eclipse.debug.internal.ui.viewers.model.provisional.IElementContentProvider"/>
+         <adapter type="org.eclipse.debug.internal.ui.viewers.model.provisional.IModelProxyFactory"/>
+         <adapter type="org.eclipse.debug.internal.ui.viewers.model.provisional.IColumnPresentationFactory"/>
+         <adapter type="org.eclipse.debug.core.commands.ITerminateHandler"/>
+         <adapter type="org.eclipse.cdt.debug.core.model.IConnectHandler"/>
+         <adapter type="org.eclipse.debug.core.commands.IDisconnectHandler"/>
+         <adapter type="org.eclipse.cdt.debug.core.model.IDebugNewExecutableHandler"/>
+         <adapter type="fr.ac6.mcu.debug.commands.IResetHandler"/>
+         <adapter
+               type="fr.ac6.mcu.debug.commands.IRunAllHandler">
+         </adapter>
+	  </factory>         
+   </extension>
+<!-- =================================================================================== -->
+<!-- MCU Startup			                                                             -->
+<!-- =================================================================================== -->    
+   <!--extension
+         point="org.eclipse.ui.startup">
+      <startup class="fr.ac6.mcu.debug.startup.InstallResourceStartup"/>
+   </extension-->
+   
+<!-- =================================================================================== -->
+<!-- MCU Menu			                                                             -->
+<!-- =================================================================================== -->    
+   <extension
+        point="org.eclipse.ui.menus">
+     
+     <menuContribution							
+			locationURI="popup:org.eclipse.ui.navigator.ProjectExplorer#PopupMenu?after=additions">
+		<menu 
+		   id="fr.ac6.mcu.target"
+	       label="Target"
+	       icon="icons/openstm32_icon_16.png">
+	      	 
+	      	 <visibleWhen
+			      checkEnabled="false">
+			   <with
+					 variable="activeMenuSelection">
+					<iterate
+					ifEmpty="false"
+					operator="or">
+						<adapt
+						   type="org.eclipse.core.resources.IProject">
+         <test
+               property="org.eclipse.core.resources.projectNature"
+               value="fr.ac6.mcu.ide.core.MCUProjectNature">
+         </test>
+         <not>
+            <test
+                  property="org.eclipse.core.resources.projectNature"
+                  value="fr.ac6.mcu.ide.core.MCUNoDebugDeviceProjectNature">
+            </test>
+         </not>
+						</adapt>
+					</iterate>
+			   </with>
+			</visibleWhen>
+		    <command
+            	commandId="fr.ac6.mcu.debug.commands.flash.program"
+            	icon="icons/chip_program.png"
+            	id="fr.ac6.mcu.debug.ui.menus.flash.program"
+            	style="push">
+    		</command>
+    		<command
+            	commandId="fr.ac6.mcu.debug.commands.flash.erase"
+            	icon="icons/chip_erase.png"
+            	id="fr.ac6.mcu.debug.ui.menus.flash.erase"
+            	style="push">
+        	</command>
+		</menu>
+	 </menuContribution>
+     <menuContribution
+           locationURI="popup:org.eclipse.debug.ui.DebugView?after=org.eclipse.debug.ui.debugview.popupMenu.TerminateAndRelaunch">
+        <command
+              commandId="fr.ac6.mcu.debug.commands.Reset"
+              disabledIcon="icons/unselected_restart.gif"
+              icon="icons/selected_restart.gif"
+              label="Reset"
+              style="push"
+              tooltip="Reset the chip and restart debug session">
+        </command>
+     </menuContribution>
+     <menuContribution
+           allPopups="false"
+           locationURI="toolbar:org.eclipse.debug.ui.DebugView?before=threadGroup">
+        <command
+              commandId="fr.ac6.mcu.debug.commands.Reset"
+              disabledIcon="icons/unselected_restart.gif"
+              icon="icons/selected_restart.gif"
+              label="Reset"
+              style="push"
+              tooltip="Reset the chip and restart debug session">
+        </command>
+        <separator
+              name="bctmSeparator"
+              visible="true">
+        </separator>
+        <command
+              commandId="fr.ac6.mcu.debug.commands.BctmConfig"
+              icon="platform:/plugin/org.eclipse.cdt.ui/icons/etool16/action-buildconfig.gif"
+              label="bctmConfigurationToggle"
+              style="push"
+              tooltip="Configure the BCTM...">
+        </command>
+        <command
+              commandId="fr.ac6.mcu.debug.commands.RunAll"
+              icon="icons/selected_runAll.png"
+              label="RunAll"
+              style="push"
+              tooltip="Resume all cores of the current project">
+           <!--<visibleWhen
+                 checkEnabled="false">
+              <with
+                    variable="selection">
+                 <iterate
+                       ifEmpty="false"
+                       operator="or">
+                    <adapt
+                          type="org.eclipse.core.resources.IProject">
+                       <test
+                             property="org.eclipse.core.resources.projectNature"
+                             value="fr.ac6.mcu.ide.core.MCUMultiCoreProjectNature">
+                       </test>
+                    </adapt>
+                 </iterate>
+              </with>
+           </visibleWhen>-->
+        </command>
+     </menuContribution>
+     <menuContribution
+           allPopups="false"
+           locationURI="menu:org.eclipse.ui.run?endof=stepGroup">
+        <command
+              commandId="fr.ac6.mcu.debug.commands.Reset"
+              disabledIcon="icons/unselected_restart.gif"
+              icon="icons/selected_restart.gif"
+              label="Reset"
+              style="push"
+              tooltip="Reset the chip and restart debug session">
+        </command>
+     </menuContribution>
+     <menuContribution
+           allPopups="false"
+           locationURI="toolbar:org.eclipse.debug.ui.main.toolbar?before=threadGroup">
+        <separator
+              name="resetSeparator"
+              visible="true">
+        </separator>
+        <command
+              commandId="fr.ac6.mcu.debug.commands.Reset"
+              disabledIcon="icons/unselected_restart.gif"
+              icon="icons/selected_restart.gif"
+              label="Reset"
+              style="push"
+              tooltip="Reset the chip and restart debug session">
+           <visibleWhen
+                 checkEnabled="false">
+              <reference
+                    definitionId="org.eclipse.cdt.debug.ui.testIsDebugActionSetActive">
+              </reference>
+           </visibleWhen>
+        </command>
+        <separator
+              name="bctmSeparator"
+              visible="true">
+        </separator>
+        <command
+              commandId="fr.ac6.mcu.debug.commands.BctmConfig"
+              icon="platform:/plugin/org.eclipse.cdt.ui/icons/etool16/action-buildconfig.gif"
+              label="bctmConfigurationToggle"
+              style="push"
+              tooltip="Configure the BCTM...">
+           <visibleWhen
+                 checkEnabled="false">
+              <reference
+                    definitionId="org.eclipse.cdt.debug.ui.testIsDebugActionSetActive">
+              </reference>
+           </visibleWhen>
+        </command>
+        <command
+              commandId="fr.ac6.mcu.debug.commands.RunAll"
+              icon="icons/selected_runAll.png"
+              label="RunAll"
+              style="push"
+              tooltip="Resume all cores of the current project">
+           <visibleWhen
+                 checkEnabled="false">
+              <reference
+                    definitionId="org.eclipse.cdt.debug.ui.testIsDebugActionSetActive">
+              </reference>
+           </visibleWhen>
+        </command>
+     </menuContribution>
+   </extension>
+   
+<!-- =================================================================================== -->
+<!-- MCU Commands		                                                                 -->
+<!-- =================================================================================== -->   
+   <extension
+         point="org.eclipse.ui.commands">
+      <category
+            name="Run Category"
+            description="Run Category"
+            id="fr.ac6.mcu.debug.commands.run.category">
+      </category>
+      <category
+            id="fr.ac6.mcu.debug.commands.bctm.category"
+            name="Bctm Category">
+      </category> 
+      <command
+            name="Program chip..."
+            description="Programing the chip"
+            id="fr.ac6.mcu.debug.commands.flash.program"
+            defaultHandler="fr.ac6.mcu.debug.commands.ProgramHandler">
+      </command>
+      <command
+            name="Erase chip..."
+            description="Erase the chip"
+            id="fr.ac6.mcu.debug.commands.flash.erase"
+            defaultHandler="fr.ac6.mcu.debug.commands.EraseHandler">
+      </command>
+      <command
+            id="fr.ac6.mcu.debug.commands.Reset"
+            name="Reset">
+      </command>
+      <command
+            categoryId="fr.ac6.mcu.debug.commands.bctm.category"
+            id="fr.ac6.mcu.debug.commands.RunAll"
+            name="Run All Cores">
+      </command>
+      <command
+            categoryId="fr.ac6.mcu.debug.commands.bctm.category"
+            id="fr.ac6.mcu.debug.commands.BctmConfig"
+            name="Bctm Configuration">
+      </command>
+   </extension>
+   <extension
+         point="org.eclipse.ui.handlers">
+      <handler
+            class="fr.ac6.mcu.debug.commands.ResetHandler"
+            commandId="fr.ac6.mcu.debug.commands.Reset">
+         <enabledWhen>
+            <with
+                  variable="org.eclipse.core.runtime.Platform">
+               <test
+                     args="fr.ac6.mcu.debug"
+                     property="org.eclipse.core.runtime.bundleState"
+                     value="ACTIVE">
+               </test>
+            </with>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="fr.ac6.mcu.debug.commands.RunAllHandler"
+            commandId="fr.ac6.mcu.debug.commands.RunAll">
+         <enabledWhen>
+            <with
+                  variable="org.eclipse.core.runtime.Platform">
+               <test
+                     args="fr.ac6.mcu.debug"
+                     property="org.eclipse.core.runtime.bundleState"
+                     value="ACTIVE">
+               </test>
+            </with>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="fr.ac6.mcu.debug.commands.BctmConfigHandler"
+            commandId="fr.ac6.mcu.debug.commands.BctmConfig">
+         <enabledWhen>
+            <with
+                  variable="org.eclipse.core.runtime.Platform">
+               <test
+                     args="fr.ac6.mcu.debug"
+                     property="org.eclipse.core.runtime.bundleState"
+                     value="ACTIVE">
+               </test>
+            </with>
+         </enabledWhen>
+      </handler>
+   </extension>
+   <extension
+         point="org.eclipse.ui.activities">
+      <activity
+            id="fr.ac6.mcu.debug.menuItem.disable"
+            name="%menuItem.disable">
+         <enabledWhen>
+            <with
+                  variable="hide">
+               <count
+                     value="-1">
+               </count>
+            </with>
+         </enabledWhen>
+      </activity>
+      <activityPatternBinding
+            activityId="fr.ac6.mcu.debug.menuItem.disable"
+            pattern="org.eclipse.debug.ui.commands.Restart">
+      </activityPatternBinding>
+   </extension>
+</plugin>

@@ -1,0 +1,15 @@
+tags
+cscope.out
+*.bak
+*.o
+*.d
+*.mk
+*.bin
+*.elf
+Debug/
+Release/
+bin/
+depend
+build_count.txt
+*.swp
+*.*~

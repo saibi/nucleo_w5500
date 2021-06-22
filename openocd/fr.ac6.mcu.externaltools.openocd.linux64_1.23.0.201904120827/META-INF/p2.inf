@@ -1,0 +1,2 @@
+instructions.install = \
+        chmod(targetDir:@artifact,targetFile:tools/openocd/bin/openocd,permissions:755);

@@ -1,0 +1,10 @@
+# Debugging options for the fr.ac6.mcu.debug plugin.
+
+# Turn on debugging for the fr.ac6.mcu.debug plugin.
+fr.ac6.mcu.debug/debug=false
+
+# Turn on debugging of stlink client
+fr.ac6.mcu.debug/debug/stlink_client=false
+
+# Turn on debugging of inner launch configuration detection
+fr.ac6.mcu.debug/debug/inner_launch_cfg=false

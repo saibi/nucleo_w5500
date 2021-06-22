@@ -1,0 +1,18 @@
+Manifest-Version: 1.0
+Bundle-SymbolicName: fr.ac6.mcu.externaltools.openocd.linux64;singleto
+ n:=true
+Built-By: acitlsqa
+Require-Bundle: org.eclipse.ui,org.eclipse.core.runtime,org.eclipse.sw
+ t
+Bundle-ManifestVersion: 2
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ActivationPolicy: lazy
+Eclipse-PlatformFilter: (& (osgi.os=linux) (osgi.arch=x86_64))
+Bundle-Vendor: Ac6
+Fragment-Host: fr.ac6.mcu.externaltools;bundle-version="2.0.0"
+Bundle-Name: OpenOCD (for Linux 64bits)
+Bundle-Version: 1.23.0.201904120827
+Created-By: Apache Maven 3.3.9
+Build-Jdk: 1.8.0_112
+Eclipse-BundleShape: dir
+
