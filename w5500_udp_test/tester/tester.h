@@ -21,6 +21,9 @@ int udp_echo_test(uint8_t dest_addr[4], int dest_port, char * send_str);
 // udp_echo_server.c
 int udp_echo_server_loop(int loop_seconds);
 
+// mem_test.c
+void malloc_test(void);
+
 #endif 
 
 /********** end of file **********/

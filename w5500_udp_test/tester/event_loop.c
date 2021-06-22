@@ -12,6 +12,7 @@
 #include <macro.h>
 #include <helper.h>
 #include <wiz_appl.h>
+#include <tester.h>
 
 #include <socket.h>
 
@@ -247,7 +248,6 @@ static int setup_udp_socket(int port, int block)
 	return sock;
 }
 
-
 void event_loop(void)
 {
 	unsigned int prev_tick = 0;
@@ -265,6 +265,7 @@ void event_loop(void)
 		.dhcp = NETINFO_STATIC,
 	};
 
+	malloc_test();
 
 	setup_wizchip();
 	setup_ip(&netinfo);
