@@ -18,7 +18,7 @@
 #include <stdio.h>
 
 static uint8_t tmp_wiz_buf[MAX_WIZ_BUF];
-static uint8_t wiz_buf_size[] = { 8, 8, 0, 0, 0, 0, 0, 0 };
+static uint8_t wiz_buf_size[] = { 4, 4, 8, 0, 0, 0, 0, 0 };
 
 static void W5500_Select(void)
 {
@@ -88,7 +88,6 @@ void setup_wizchip(void)
 {
 	int ret;
 
-
 	W5500_HardwareReset();
 	reg_wizchip_cs_cbfunc(W5500_Select, W5500_Deselect);
 	reg_wizchip_spi_cbfunc(W5500_ReadByte, W5500_WriteByte);
@@ -100,7 +99,7 @@ void setup_wizchip(void)
 /// return unused socket number
 /// \return socket number 0~7
 /// \return -1 socket unavialable
-static int get_available_socket_no(void)
+int get_available_socket_no(void)
 {
 	int i;
 
@@ -173,28 +172,6 @@ int get_DHCP_ip(uint8_t mac[6], wiz_NetInfo *netinfo)
 	return 0;
 }
 
-/// setup udp socket (2k buf)
-/// \param port
-/// \param block 0 - non blocking, 1 - blocking
-/// \return socket number (0~7)
-/// \return -1 socket unavailable
-int setup_udp_socket(int port, int block)
-{
-	int ret = 0;
-	int sock = get_available_socket_no();
-	if ( sock < 0 ) 
-		return -1;
-
-	ret = getSn_SR(sock);
-	DPN("sock %d status = %d", sock, ret);
-
-	ret = socket(sock, Sn_MR_UDP, port, block ? SOCK_IO_BLOCK : SOCK_IO_NONBLOCK);
-	DPN("create udp socket, port %d, ret = %d", port, ret);
-	ret = getSn_SR(sock);
-	DPN("sock %d status = %d", sock, ret);
-
-	return sock;
-}
 
 /// return socket rx/tx buf size
 int get_socket_buf_size(int sock)
