@@ -180,14 +180,17 @@ static void handle_tcp_client(int sock, int run_connect)
 			if ( prev_state != state )
 				DPN("SOCK_CLOSE_WAIT");
 
-			disconnect(sock);
+    			ret = disconnect(sock);
+			DPN("disconnect = %d", ret);
 			break;
 
 		case SOCK_CLOSED:
 			if ( prev_state != state )
 				DPN("SOCK_CLOSED");
 
-			close(sock);
+			ret = close(sock);
+			DPN("close = %d", ret);
+
 			ret = socket(sock, Sn_MR_TCP, 8277, SOCK_IO_NONBLOCK);
 			DPN("sock_tcp_client = %d", ret);
 			break;
@@ -202,20 +205,6 @@ static void handle_tcp_client(int sock, int run_connect)
 			{
 				ret = connect(sock, host_info.addr, host_info.port);
 				DPN("connect host = %d", ret);
-
-				HAL_Delay(100);
-
-				ret = recv(sock, recv_buf, sizeof(recv_buf) - 1);
-				if ( ret > 0 ) 
-				{
-					printf("recv %d bytes\r\n", ret);
-					recv_buf[ret] = 0;
-					printf("%s\r\n", recv_buf);
-
-					ret = send(sock, recv_buf, ret);
-					printf("send, ret = %d\r\n", ret);
-				}
-
 			}
 			break;
 
