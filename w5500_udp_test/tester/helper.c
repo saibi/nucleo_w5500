@@ -29,13 +29,13 @@ int gen_random_port(void)
 }
 
 /// print ip address & port number
-void prn_ip_port(uint8_t *ip, uint16_t port)
+void prn_ip_port(struct ip_port_rec *phost)
 {
-	printf("%d.%d.%d.%d:%d\r\n", ip[0], ip[1], ip[2], ip[3], port);
+	printf("%d.%d.%d.%d:%d\r\n", phost->ip[0], phost->ip[1], phost->ip[2], phost->ip[3], phost->port);
 }
 
 /// print ip v4 address
-void pr_ip4_addr(uint8_t addr[4])
+void pr_ip_addr(uint8_t addr[4])
 {
 	printf("%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3]);
 }
@@ -52,13 +52,13 @@ void pr_wiznetinfo(wiz_NetInfo * netinfo)
 	printf("mac: ");
 	pr_mac_addr(netinfo->mac);
 	printf("\r\nip: ");
-	pr_ip4_addr(netinfo->ip);
+	pr_ip_addr(netinfo->ip);
 	printf("\r\ngateway: ");
-	pr_ip4_addr(netinfo->gw);
+	pr_ip_addr(netinfo->gw);
 	printf("\r\nnetmask: ");
-	pr_ip4_addr(netinfo->sn);
+	pr_ip_addr(netinfo->sn);
 	printf("\r\ndns: ");
-	pr_ip4_addr(netinfo->dns);
+	pr_ip_addr(netinfo->dns);
 	printf("\r\n");
 }
 /********** end of file **********/

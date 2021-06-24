@@ -58,7 +58,7 @@
 
 #include <string.h>
 
-#define MAX_WIZ_BUF (8*1024)
+#define MAX_WIZ_BUF (8*1024 + 4) // make sure MAX_WIZ_BUF valure is bigger than wizchip_init() size 
 
 extern SPI_HandleTypeDef hspi2;
 uint8_t w5500_Tx_Buf[MAX_WIZ_BUF]; 

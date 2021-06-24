@@ -8,6 +8,7 @@
  *
 */
 #include "wiz_appl.h"
+#include <hal_w5500.h>
 
 #include <socket.h>
 #include <DHCP/dhcp.h>
@@ -17,74 +18,9 @@
 
 #include <stdio.h>
 
-static uint8_t tmp_wiz_buf[MAX_WIZ_BUF];
-static uint8_t wiz_buf_size[] = { 4, 4, 8, 0, 0, 0, 0, 0 };
+static uint8_t wiz_buf_size[] = { 2, 2, 8, 0, 0, 0, 0, 0 };
 
-static void W5500_Select(void)
-{
-	HAL_GPIO_WritePin(GPIOB, W5500_CS_Pin, GPIO_PIN_RESET);
-}
-
-static void W5500_Deselect(void)
-{
-	HAL_GPIO_WritePin(GPIOB, W5500_CS_Pin, GPIO_PIN_SET);
-}
-
-static uint8_t W5500_ReadByte(void)
-{
-	unsigned char txByte = 0xff;	//dummy
-	unsigned char rtnByte;
-	while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
-		;
-	HAL_SPI_TransmitReceive(&hspi2, &txByte, &rtnByte, 1, 10);
-	return rtnByte;
-}
-
-static void W5500_WriteByte(unsigned char txByte)
-{
-	unsigned char rtnByte;
-	while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
-		;
-	HAL_SPI_TransmitReceive(&hspi2, &txByte, &rtnByte, 1, 10);
-}
-
-static void W5500_ReadBuff(uint8_t * buff, uint16_t len)
-{
-
-#ifdef SPI_POLLING
-	while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
-		;
-	HAL_SPI_TransmitReceive(&hspi2, tmp_wiz_buf, buff, len, 10);
-#else
-	tmp_wiz_buf[0] = buff[0];
-	tmp_wiz_buf[1] = buff[1];
-	tmp_wiz_buf[2] = buff[2];
-	HAL_SPI_TransmitReceive_DMA(&hspi2, tmp_wiz_buf, buff, len);
-#endif
-}
-
-static void W5500_WriteBuff(uint8_t * buff, uint16_t len)
-{
-#ifdef SPI_POLLING
-	while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
-		;
-	HAL_SPI_TransmitReceive(&hspi2, buff, tmp_wiz_buf, len, 10);
-#else
-	while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
-		;
-	HAL_SPI_TransmitReceive_DMA(&hspi2, buff, tmp_wiz_buf, len);
-#endif
-}
-
-static void W5500_HardwareReset(void)
-{
-	HAL_GPIO_WritePin(GPIOF, W5500_RST_Pin, GPIO_PIN_RESET);
-	HAL_Delay(1);
-	HAL_GPIO_WritePin(GPIOF, W5500_RST_Pin, GPIO_PIN_SET);
-}
-
-
-void setup_wizchip(void)
+void wiz_init_chip(void)
 {
 	int ret;
 
@@ -92,6 +28,7 @@ void setup_wizchip(void)
 	reg_wizchip_cs_cbfunc(W5500_Select, W5500_Deselect);
 	reg_wizchip_spi_cbfunc(W5500_ReadByte, W5500_WriteByte);
 	reg_wizchip_spiburst_cbfunc(W5500_ReadBuff, W5500_WriteBuff);
+
 	ret = wizchip_init(wiz_buf_size, wiz_buf_size);
 	DPN("setup wiz chip 5500. %d", ret);
 }
@@ -99,7 +36,7 @@ void setup_wizchip(void)
 /// return unused socket number
 /// \return socket number 0~7
 /// \return -1 socket unavialable
-int get_available_socket_no(void)
+int wiz_get_available_socket_no(void)
 {
 	int i;
 
@@ -119,7 +56,7 @@ int get_available_socket_no(void)
 /// \param netinfo (out) dhcp address 
 /// \return 0 success
 /// \return -1 error or failed
-int get_DHCP_ip(uint8_t mac[6], wiz_NetInfo *netinfo)
+int wiz_get_dhcp_ip(uint8_t mac[6], wiz_NetInfo *netinfo)
 {
 	int sock;
 	uint8_t buf[1024];
@@ -128,7 +65,7 @@ int get_DHCP_ip(uint8_t mac[6], wiz_NetInfo *netinfo)
 
 	setSHAR(mac);
 
-	sock = get_available_socket_no();
+	sock = wiz_get_available_socket_no();
 	if ( sock < 0 ) 
 	{
 		DPN("socket unavialable.");
@@ -174,7 +111,7 @@ int get_DHCP_ip(uint8_t mac[6], wiz_NetInfo *netinfo)
 
 
 /// return socket rx/tx buf size
-int get_socket_buf_size(int sock)
+int wiz_get_socket_buf_size(int sock)
 {
 	if ( sock < 0 || sock > MAX_WIZ_SOCKET ) 
 		return -1;
@@ -182,16 +119,66 @@ int get_socket_buf_size(int sock)
 	return wiz_buf_size[sock] * 1024;
 }
 
-void HAL_SYSTICK_Callback(void)
+/// block until (size) bytes sent
+int wiz_sendb(int sock, char *buf, int size)
 {
-	extern void DHCP_time_handler(void);
-	static uint32_t prev_tick = 0;
+	int ret = 0;
+	int sent_size = 0;
+	int remain_size = size;
 
-	if ( (uwTick - prev_tick) >= TICKS_PER_SECOND ) 
-	{
-		DHCP_time_handler();   //1sec마다 증가...
-		prev_tick = uwTick;
-	}
+	do {
+		ret = send(sock, (uint8_t*)&buf[sent_size], remain_size);
+		if ( ret < 0 ) 
+		{
+			DPN("send error = %d", ret);
+			if ( sent_size > 0 )
+				DPN("%d bytes sent", sent_size);
+
+			return ret;
+		}
+		remain_size -= ret;
+		sent_size += ret;
+	} while( remain_size > 0 );
+
+	return sent_size;
 }
+
+/// block until (size) bytes received 
+int wiz_recvb(int sock, char *buf, int size)
+{
+	int ret = 0;
+	int recv_size = 0;
+	int remain_size = size;
+
+	do {
+		ret = recv(sock, (uint8_t*)&buf[recv_size], remain_size);
+		if ( ret < 0 ) 
+		{
+			DPN("recv error = %d", ret);
+			if ( recv_size > 0 )
+				DPN("%d bytes received", recv_size);
+
+			return ret;
+		}
+		remain_size -= ret;
+		recv_size += ret;
+	} while ( remain_size > 0 );
+
+	return recv_size;
+}
+
+/// \param (in) netinfo->mac 
+/// \param (out) netinfo 
+void wiz_set_dhcp_ip(wiz_NetInfo *netinfo)
+{
+	DPN("get DHCP ip ...");
+	if ( wiz_get_dhcp_ip(netinfo->mac, netinfo) < 0 ) 
+		DPN("ip error\n");
+	else 
+		pr_wiznetinfo(netinfo);
+
+	wizchip_setnetinfo(netinfo);
+}
+
 
 /********** end of file **********/

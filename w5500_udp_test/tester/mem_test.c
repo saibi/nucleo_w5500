@@ -9,10 +9,12 @@
 */
 #include "tester.h"
 
+#include <global_def.h>
 #include <macro.h>
 #include <wiz_appl.h>
 
 #include <stdlib.h>
+#include <string.h>
 
 void malloc_test(void)
 {
@@ -21,7 +23,7 @@ void malloc_test(void)
 	extern char * syscall_start_of_heap_addr;
 	extern char * syscall_end_of_heap_addr;
 
-	extern uint8_t recv_buf[MAX_WIZ_BUF];
+	extern uint8_t recv_buf[MAX_RW_BUF];
 
 	int max = 0;
 	char *alloc_p;

@@ -20,7 +20,9 @@ extern __IO uint32_t uwTick;
 
 extern SPI_HandleTypeDef hspi2;
 
+extern UART_HandleTypeDef huart3; // console 
 
+void console_writeb(char *buf, int size);
 
 #endif
 /********** end of file **********/

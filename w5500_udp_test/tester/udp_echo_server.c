@@ -32,23 +32,22 @@ int udp_echo_server_loop(int loop_seconds)
 		return -1;
 	}
 
-	uint8_t addr[4] = { 0, };
-	uint16_t port = 0 ;
+	struct ip_port_rec sender;
 	char recv_buf[2048] = {0, };
 
 	DPN("start loop\n");
 
 	TIME_LOOP_START(loop_seconds)
 
-		ret = recvfrom(SOCK_NO, (uint8_t*)recv_buf, sizeof(recv_buf), addr, &port);
+		ret = recvfrom(SOCK_NO, (uint8_t*)recv_buf, sizeof(recv_buf), sender.ip, &sender.port);
 		if ( ret > 0 ) 
 		{
 			DP("recv %d bytes from ", ret);
-			prn_ip_port(addr, port);
+			prn_ip_port(&sender);
 
 			DPN("recv [%s]", recv_buf);
 
-			ret = sendto(SOCK_NO, (uint8_t*)recv_buf, ret, addr, port);
+			ret = sendto(SOCK_NO, (uint8_t*)recv_buf, ret, sender.ip, sender.port);
 			DPN("sendto, ret = %d", ret);
 		}
 

@@ -9,6 +9,7 @@
 */
 #include "event_loop.h"
 
+#include <global_def.h>
 #include <macro.h>
 #include <helper.h>
 #include <wiz_appl.h>
@@ -18,38 +19,23 @@
 
 #include <stdlib.h>
 
-struct _address_and_port {
-	uint8_t addr[4];
-	uint16_t port;
-} host_info;
+struct ip_port_rec host_info;
+char recv_buf[MAX_RW_BUF];
+int event_loop_delay = 0;
 
-uint8_t recv_buf[MAX_WIZ_BUF];
-
-static void setup_ip(wiz_NetInfo *netinfo)
-{
-	DPN("DHCP...");
-	if ( get_DHCP_ip(netinfo->mac, netinfo) < 0 ) 
-		DPN("ip error\n");
-	else 
-		pr_wiznetinfo(netinfo);
-
-	wizchip_setnetinfo(netinfo);
-}
-
-#define EW_DGRAM_SIZE 64 
+#define MAX_EW_DGRAM 64 
 
 /// \return 1 tcp connection requested
 static int handle_udp(int sock)
 {
-	uint8_t addr[4] = { 0, };
-	uint16_t port = 0;
+	struct ip_port_rec sender;
 	int ret;
 
-	ret = recvfrom(sock, recv_buf, sizeof(recv_buf) - 1, addr, &port);
+	ret = recvfrom(sock, (uint8_t*)recv_buf, sizeof(recv_buf) - 1, sender.ip, &sender.port);
 	if ( ret > 0 ) 
 	{
 		printf("recv %d bytes from ", ret);
-		prn_ip_port(addr, port);
+		prn_ip_port(&sender);
 		recv_buf[ret] = 0;
 		printf("recv start ==========\r\n");
 		printf("%s", recv_buf);
@@ -58,19 +44,19 @@ static int handle_udp(int sock)
 
 		if ( strncmp((char*)recv_buf, "ew hello", 8) == 0 )
 		{
-			uint8_t dgram[EW_DGRAM_SIZE] = { 0, };
+			uint8_t dgram[MAX_EW_DGRAM] = { 0, };
 
 			DPN("ew hello received. reply ready");
 			strncpy((char*)dgram, "ew ready w5500", sizeof(dgram) - 1);
-			ret = sendto(sock, dgram, strlen((char*)dgram), addr, port);
+			ret = sendto(sock, dgram, strlen((char*)dgram), sender.ip, sender.port);
 			printf("sendto, ret = %d\r\n", ret);
 		}
-		else if ( strncmp((char*)recv_buf, "ew con ", 7 ) == 0 )
+		else if ( strncmp(recv_buf, "ew con ", 7 ) == 0 )
 		{
 			char * port_ptr = NULL;
 			char * id_ptr = NULL;
 
-			port_ptr = strtok((char*)&recv_buf[7], " ");
+			port_ptr = strtok(&recv_buf[7], " ");
 			if ( port_ptr )
 				id_ptr = strtok(NULL, " ");
 			
@@ -81,18 +67,23 @@ static int handle_udp(int sock)
 				if ( strncmp(id_ptr, "w5500", 6) == 0 )
 				{
 					DPN("verify ok");
-					memcpy(host_info.addr, addr, sizeof(addr));
+					COPY_IP_ADDR(host_info.ip, sender.ip);
 					host_info.port = atoi(port_ptr);
 					return 1;
 				}
 			}
 
 		}
+		else if ( strncmp(recv_buf, "ew delay ", 9 ) == 0 )
+		{
+			event_loop_delay = atoi(&recv_buf[9]);
+			DPN("ew delay received. %d", event_loop_delay);
+		}
 		else 
 		{
 			// echo
 			DPN("echo udp datagram.");
-			ret = sendto(sock, recv_buf, ret, addr, port);
+			ret = sendto(sock, (uint8_t*)recv_buf, ret, sender.ip, sender.port);
 			printf("sendto, ret = %d\r\n", ret);
 		}
 
@@ -114,14 +105,14 @@ static void handle_tcp_server(int sock)
 				connected = 1;
 			}
 
-			ret = recv(sock, recv_buf, sizeof(recv_buf) - 1);
+			ret = recv(sock, (uint8_t*)recv_buf, sizeof(recv_buf) - 1);
 			if ( ret > 0 ) 
 			{
 				printf("recv %d bytes\r\n", ret);
 				recv_buf[ret] = 0;
 				printf("%s\r\n", recv_buf);
 
-				ret = send(sock, recv_buf, ret);
+				ret = send(sock, (uint8_t*)recv_buf, ret);
 				printf("sendto, ret = %d\r\n", ret);
 			}
 
@@ -151,6 +142,7 @@ static void handle_tcp_server(int sock)
 	}
 }
 
+
 static void handle_tcp_client(int sock, int run_connect)
 {
 	static int prev_state = -1;
@@ -163,15 +155,16 @@ static void handle_tcp_client(int sock, int run_connect)
 			if ( prev_state != state )
 				DPN("SOCK_ESTABLISHED");
 
-			ret = recv(sock, recv_buf, sizeof(recv_buf) - 1);
+			ret = recv(sock, (uint8_t*)recv_buf, sizeof(recv_buf) - 1);
 			if ( ret > 0 ) 
 			{
 				printf("recv %d bytes\r\n", ret);
 				recv_buf[ret] = 0;
-				printf("%s\r\n", recv_buf);
+				
+				console_writeb(recv_buf, ret > 40 ? 40 : ret);
 
-				ret = send(sock, recv_buf, ret);
-				printf("send, ret = %d\r\n", ret);
+				ret = wiz_sendb(sock, recv_buf, ret);
+				printf("\r\nwiz_sendb, ret = %d\r\n", ret);
 			}
 
 			break;
@@ -203,7 +196,7 @@ static void handle_tcp_client(int sock, int run_connect)
 			}
 			if ( run_connect ) 
 			{
-				ret = connect(sock, host_info.addr, host_info.port);
+				ret = connect(sock, host_info.ip, host_info.port);
 				DPN("connect host = %d", ret);
 			}
 			break;
@@ -222,7 +215,7 @@ static void handle_tcp_client(int sock, int run_connect)
 static int setup_udp_socket(int port, int block)
 {
 	int ret = 0;
-	int sock = get_available_socket_no();
+	int sock = wiz_get_available_socket_no();
 	if ( sock < 0 ) 
 		return -1;
 
@@ -256,8 +249,8 @@ void event_loop(void)
 
 	malloc_test();
 
-	setup_wizchip();
-	setup_ip(&netinfo);
+	wiz_init_chip();
+	wiz_set_dhcp_ip(&netinfo);
 
 
 	sock_udp = setup_udp_socket(8279, 0);
@@ -278,6 +271,7 @@ void event_loop(void)
 		{
 			DPN("");
 		}
+		HAL_Delay(event_loop_delay);
 	}
 }
 /********** end of file **********/

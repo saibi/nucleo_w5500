@@ -11,20 +11,19 @@
 #define _WIZ_APPL_H__
 
 #include <wizchip_conf.h>
-
 #include <stdint.h>
-#include <string.h>
 
 #define MAX_WIZ_SOCKET 3 // use 3 sockets only
-#define MAX_WIZ_BUF (8*1024)
 
+void wiz_init_chip(void);
+int wiz_get_dhcp_ip(uint8_t mac[6], wiz_NetInfo *netinfo);
+int wiz_get_socket_buf_size(int sock);
+int wiz_get_available_socket_no(void);
 
-void setup_wizchip(void);
-int get_DHCP_ip(uint8_t mac[6], wiz_NetInfo *netinfo);
-int get_socket_buf_size(int sock);
-int get_available_socket_no(void);
+int wiz_sendb(int sock, char *buf, int size);
+int wiz_recvb(int sock, char *buf, int size);
 
-#define COPY_MAC_ADDR(dest, src) memcpy(dest, src, sizeof(uint8_t)*6)
+void wiz_set_dhcp_ip(wiz_NetInfo *netinfo);
 
 #endif 
 /********** end of file **********/

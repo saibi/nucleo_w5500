@@ -22,14 +22,16 @@ int udp_echo_test(uint8_t dest_addr[4], int dest_port, char * send_str)
 
 	int ret = 0;
 	int src_port = gen_random_port();
+	struct ip_port_rec dest;
 
+	SET_IP_PORT(dest, dest_addr, dest_port);
 
 	DPN("udp echo test");
 
 	DPN("src port = %d", src_port);
 
 	DP("prepare udp echo server : ");
-	prn_ip_port(dest_addr, dest_port);
+	prn_ip_port(&dest);
 
 	ret = socket(SOCK_NO, Sn_MR_UDP, src_port, 0);
 	DPN("create udp socket, ret = %d", ret);
@@ -41,7 +43,7 @@ int udp_echo_test(uint8_t dest_addr[4], int dest_port, char * send_str)
 	}
 
 	int send_bytes = strlen(send_str);
-	ret = sendto(SOCK_NO, (uint8_t *)send_str, send_bytes, dest_addr, dest_port);
+	ret = sendto(SOCK_NO, (uint8_t *)send_str, send_bytes, dest.ip, dest.port);
 
 	DPN("sendto %d bytes, ret = %d", send_bytes, ret);
 
@@ -58,7 +60,7 @@ int udp_echo_test(uint8_t dest_addr[4], int dest_port, char * send_str)
 	if ( ret > 0 ) 
 	{
 		DP("recv [%s] from ", recv_buf);
-		prn_ip_port(addr, port);
+		prn_ip_port(&dest);
 	}
 
 	ret = close(SOCK_NO);
