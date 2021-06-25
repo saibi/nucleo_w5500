@@ -95,7 +95,7 @@ CMSIS_DIR=Drivers/CMSIS
 
 FATFS_DIR=Middlewares/Third_Party/FatFs/src
 
-SRC_DIRS+=Src support tester
+SRC_DIRS+=Src support comm tester
 SRC_DIRS+=$(HAL_DIR)/Src 
 SRC_DIRS+=$(DHCP_DIR)
 SRC_DIRS+=$(ETHER_DIR) 

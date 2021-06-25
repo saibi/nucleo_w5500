@@ -11,6 +11,7 @@
 #define _EVENT_LOOP_H_
 
 void event_loop(void);
+void set_event_loop_delay(int val);
 
 #endif 
 /********** end of file **********/

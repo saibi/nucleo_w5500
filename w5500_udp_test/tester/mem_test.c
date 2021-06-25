@@ -23,14 +23,11 @@ void malloc_test(void)
 	extern char * syscall_start_of_heap_addr;
 	extern char * syscall_end_of_heap_addr;
 
-	extern uint8_t recv_buf[MAX_WIZ_BUF];
-
 	int max = 0;
 	char *alloc_p;
 	int i;
 	int size;
 
-	DPN("&recv_buf = %p", recv_buf);
 	DPN("&max= %p", &max);
 	DPN("&size = %p", &size);
 
