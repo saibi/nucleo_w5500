@@ -28,7 +28,6 @@ void set_event_loop_delay(int val)
 void event_loop(void)
 {
 	unsigned int prev_tick = 0;
-	int ret;
 
 	wiz_NetInfo netinfo = {
 		.mac = {0x00, 0x08, 0xdc, 0xab, 0xcd, 0x44},

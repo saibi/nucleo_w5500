@@ -18,15 +18,17 @@ enum operation_list {
 	OP_CONNECT_HOST,
 };
 
+#define MAX_EW_DGRAM 40
+
 struct comm_meta_rec {
 	struct ip_port_rec host;
+	char recv_dgram[MAX_EW_DGRAM];
 	char recv_buf[MAX_WIZ_BUF];
 
 	int operation;
 };
 
 #define UDP_SERVER_PORT 8279
-#define TCP_SERVER_PORT 8279
 
 int comm_udp_server(int sock);
 int comm_tcp_client(int sock);

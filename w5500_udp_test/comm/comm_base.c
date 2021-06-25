@@ -14,13 +14,14 @@
 #include <event_loop.h>
 #include <wiz_appl.h>
 
-#define MAX_EW_DGRAM 64 
 
 struct comm_meta_rec comm;
+
 
 int comm_udp_server(int sock)
 {
 	struct ip_port_rec sender;
+	char recv_dgram[MAX_EW_DGRAM+1];
 	int ret;
 	static int prev_state = -1;
 	int state = getSn_SR(sock);
@@ -40,30 +41,30 @@ int comm_udp_server(int sock)
 			if ( prev_state != state )
 				DPN("SOCK_UDP");
 
-			ret = recvfrom(sock, (uint8_t*)comm.recv_buf, sizeof(comm.recv_buf) - 1, sender.ip, &sender.port);
+			ret = recvfrom(sock, (uint8_t*)recv_dgram, sizeof(recv_dgram) - 1, sender.ip, &sender.port);
 			if ( ret > 0 ) 
 			{
 				printf("recv %d bytes from ", ret);
 				prn_ip_port(&sender);
-				comm.recv_buf[ret] = 0;
-				console_writeb(comm.recv_buf, ret);
+				recv_dgram[ret] = 0;
+				console_writeb(recv_dgram, ret);
 				printf("\r\n");
 
-				if ( strncmp((char*)comm.recv_buf, "ew hello", 8) == 0 )
+				if ( strncmp(recv_dgram, "ew hello", 8) == 0 )
 				{
-					uint8_t dgram[MAX_EW_DGRAM] = { 0, };
+					char dgram[MAX_EW_DGRAM] = { 0, };
 
 					DPN("ew hello received. reply ready");
-					strncpy((char*)dgram, "ew ready w5500", sizeof(dgram) - 1);
-					ret = sendto(sock, dgram, strlen((char*)dgram), sender.ip, sender.port);
+					strncpy(dgram, "ew ready w5500", sizeof(dgram) - 1);
+					ret = sendto(sock, (uint8_t *)dgram, strlen(dgram), sender.ip, sender.port);
 					printf("sendto, ret = %d\r\n", ret);
 				}
-				else if ( strncmp(comm.recv_buf, "ew con ", 7 ) == 0 )
+				else if ( strncmp(recv_dgram, "ew con ", 7 ) == 0 )
 				{
 					char * port_ptr = NULL;
 					char * id_ptr = NULL;
 
-					port_ptr = strtok(&comm.recv_buf[7], " ");
+					port_ptr = strtok(&recv_dgram[7], " ");
 					if ( port_ptr )
 						id_ptr = strtok(NULL, " ");
 					
@@ -89,7 +90,7 @@ int comm_udp_server(int sock)
 				{
 					// echo
 					DPN("echo udp datagram.");
-					ret = sendto(sock, (uint8_t*)comm.recv_buf, ret, sender.ip, sender.port);
+					ret = sendto(sock, (uint8_t*)recv_dgram, ret, sender.ip, sender.port);
 					printf("sendto, ret = %d\r\n", ret);
 				}
 			}
