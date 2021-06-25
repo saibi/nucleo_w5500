@@ -82,9 +82,9 @@ int comm_udp_server(int sock)
 					}
 
 				}
-				else if ( strncmp(comm.recv_buf, "ew delay ", 9 ) == 0 )
+				else if ( strncmp(recv_dgram, "ew delay ", 9 ) == 0 )
 				{
-					set_event_loop_delay(atoi(&comm.recv_buf[9]));
+					set_event_loop_delay(atoi(&recv_dgram[9]));
 				}
 				else 
 				{

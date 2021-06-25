@@ -22,7 +22,6 @@ enum operation_list {
 
 struct comm_meta_rec {
 	struct ip_port_rec host;
-	char recv_dgram[MAX_EW_DGRAM];
 	char recv_buf[MAX_WIZ_BUF];
 
 	int operation;
