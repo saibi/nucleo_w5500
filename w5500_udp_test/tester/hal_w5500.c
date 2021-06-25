@@ -11,7 +11,7 @@
 #include <global_def.h>
 #include <tick.h>
 
-static uint8_t tmp_wiz_buf[MAX_RW_BUF];
+uint8_t w5500_dummy_buf[MAX_WIZ_BUF];
 
 void W5500_Select(void)
 {
@@ -47,12 +47,12 @@ void W5500_ReadBuff(uint8_t * buff, uint16_t len)
 #ifdef SPI_POLLING
 	while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
 		;
-	HAL_SPI_TransmitReceive(&hspi2, tmp_wiz_buf, buff, len, 10);
+	HAL_SPI_TransmitReceive(&hspi2, w5500_dummy_buf, buff, len, 10);
 #else
-	tmp_wiz_buf[0] = buff[0];
-	tmp_wiz_buf[1] = buff[1];
-	tmp_wiz_buf[2] = buff[2];
-	HAL_SPI_TransmitReceive_DMA(&hspi2, tmp_wiz_buf, buff, len);
+	w5500_dummy_buf[0] = buff[0];
+	w5500_dummy_buf[1] = buff[1];
+	w5500_dummy_buf[2] = buff[2];
+	HAL_SPI_TransmitReceive_DMA(&hspi2, w5500_dummy_buf, buff, len);
 #endif
 }
 
@@ -61,11 +61,11 @@ void W5500_WriteBuff(uint8_t * buff, uint16_t len)
 #ifdef SPI_POLLING
 	while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
 		;
-	HAL_SPI_TransmitReceive(&hspi2, buff, tmp_wiz_buf, len, 10);
+	HAL_SPI_TransmitReceive(&hspi2, buff, w5500_dummy_buf, len, 10);
 #else
 	while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
 		;
-	HAL_SPI_TransmitReceive_DMA(&hspi2, buff, tmp_wiz_buf, len);
+	HAL_SPI_TransmitReceive_DMA(&hspi2, buff, w5500_dummy_buf, len);
 #endif
 }
 

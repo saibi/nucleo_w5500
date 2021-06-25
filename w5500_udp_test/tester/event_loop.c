@@ -20,7 +20,7 @@
 #include <stdlib.h>
 
 struct ip_port_rec host_info;
-char recv_buf[MAX_RW_BUF];
+char recv_buf[MAX_WIZ_BUF];
 int event_loop_delay = 0;
 
 #define MAX_EW_DGRAM 64 
@@ -208,15 +208,16 @@ static void handle_tcp_client(int sock, int run_connect)
 }
 
 /// setup udp socket (2k buf)
+/// \param sock 
 /// \param port
 /// \param block 0 - non blocking, 1 - blocking
 /// \return socket number (0~7)
 /// \return -1 socket unavailable
-static int setup_udp_socket(int port, int block)
+static int setup_udp_socket(int sock, int port, int block)
 {
 	int ret = 0;
-	int sock = wiz_get_available_socket_no();
-	if ( sock < 0 ) 
+
+	if ( sock < 0 || sock >= MAX_WIZ_SOCKET) 
 		return -1;
 
 	ret = getSn_SR(sock);
@@ -252,12 +253,12 @@ void event_loop(void)
 	wiz_init_chip();
 	wiz_set_dhcp_ip(&netinfo);
 
-
-	sock_udp = setup_udp_socket(8279, 0);
+	sock_tcp_client = 0;
+	sock_tcp = 1;
+	sock_udp = 2;
+	setup_udp_socket(sock_udp, 8279, 0);
 	DPN("listen udp 8279 port");
 
-	sock_tcp = 1;
-	sock_tcp_client = 2;
 
 	DPN("start main loop");
 	while (1)

@@ -10,7 +10,8 @@
 #ifndef _GLOBAL_DEF_H_
 #define _GLOBAL_DEF_H_
 
-#define MAX_RW_BUF (8*1024 + 4)
+// make sure MAX_WIZ_BUF is bigger than wizchip_init() buffer size
+#define MAX_WIZ_BUF (8*1024 + 4)
 
 #endif 
 /********** end of file **********/

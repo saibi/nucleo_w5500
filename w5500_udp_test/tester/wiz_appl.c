@@ -18,10 +18,11 @@
 
 #include <stdio.h>
 
-static uint8_t wiz_buf_size[] = { 2, 2, 8, 0, 0, 0, 0, 0 };
 
 void wiz_init_chip(void)
 {
+	uint8_t wiz_tx_size[] = { 8, 2, 2, 2, 2, 0, 0, 0 };
+	uint8_t wiz_rx_size[] = { 8, 2, 2, 2, 2, 0, 0, 0 };
 	int ret;
 
 	W5500_HardwareReset();
@@ -29,7 +30,7 @@ void wiz_init_chip(void)
 	reg_wizchip_spi_cbfunc(W5500_ReadByte, W5500_WriteByte);
 	reg_wizchip_spiburst_cbfunc(W5500_ReadBuff, W5500_WriteBuff);
 
-	ret = wizchip_init(wiz_buf_size, wiz_buf_size);
+	ret = wizchip_init(wiz_tx_size, wiz_rx_size);
 	DPN("setup wiz chip 5500. %d", ret);
 }
 
@@ -107,16 +108,6 @@ int wiz_get_dhcp_ip(uint8_t mac[6], wiz_NetInfo *netinfo)
 	COPY_MAC_ADDR(netinfo->mac, mac);
 
 	return 0;
-}
-
-
-/// return socket rx/tx buf size
-int wiz_get_socket_buf_size(int sock)
-{
-	if ( sock < 0 || sock > MAX_WIZ_SOCKET ) 
-		return -1;
-
-	return wiz_buf_size[sock] * 1024;
 }
 
 /// block until (size) bytes sent

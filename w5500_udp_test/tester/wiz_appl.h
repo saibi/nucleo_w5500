@@ -13,11 +13,10 @@
 #include <wizchip_conf.h>
 #include <stdint.h>
 
-#define MAX_WIZ_SOCKET 3 // use 3 sockets only
+#define MAX_WIZ_SOCKET 5 // use 5 sockets only
 
 void wiz_init_chip(void);
 int wiz_get_dhcp_ip(uint8_t mac[6], wiz_NetInfo *netinfo);
-int wiz_get_socket_buf_size(int sock);
 int wiz_get_available_socket_no(void);
 
 int wiz_sendb(int sock, char *buf, int size);
