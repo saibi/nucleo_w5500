@@ -292,7 +292,7 @@ void reg_dhcp_cbfunc(void(*ip_assign)(void), void(*ip_update)(void), void(*ip_co
 }
 
 /* make the common DHCP message */
-void makeDHCPMSG(void)
+static void makeDHCPMSG(void)
 {
    uint8_t  bk_mac[6];
    uint8_t* ptmp;
@@ -572,7 +572,7 @@ void send_DHCP_DECLINE(void)
 }
 
 /* PARSE REPLY pDHCPMSG */
-int8_t parseDHCPMSG(void)
+static int8_t parseDHCPMSG(void)
 {
 	uint8_t svr_addr[6];
 	uint16_t  svr_port;
