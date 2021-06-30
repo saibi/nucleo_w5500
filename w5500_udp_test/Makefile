@@ -114,6 +114,7 @@ INC_FLAGS=$(INC_DIR:%=-I%)
 
 DEF_FLAGS=-DUSE_HAL_DRIVER -DSTM32F767xx -D__weak=__attribute__\(\(weak\)\) -D__packed=__attribute__\(\(__packed__\)\) 
 DEF_FLAGS+=-DVERSION_STR=\"$(version_str)\" -DDATE_STR=\"$(date_str)\" -DBUILD_COUNT_STR=\"$(build_count_str)\"
+DEF_FLAGS+=-DZERO_ARRAY_IDX=1
 
 ARM_FLAGS=-mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb 
 

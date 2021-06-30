@@ -30,7 +30,6 @@ struct comm_meta_rec {
 #define UDP_SERVER_PORT 8279
 
 int comm_udp_server(int sock);
-int comm_tcp_client(int sock);
 
 #endif 
 /********** end of file **********/
