@@ -60,9 +60,10 @@ $(shell echo "1" > build_count.txt)
 endif
 
 date_str=$(shell date +%Y%m%d)
+time_str=$(shell date +%H%M%S)
 build_count_str=$(shell touch build_count.txt;cat build_count.txt)
-#version_str=$(shell ./extract_ver.sh) # VERSION_STR extract script
-version_str=0.0.1
+VERSION_INFO_FILE=./tester/version.c
+version_str=$(shell ./extract_ver.sh $(VERSION_INFO_FILE))
 
 CC=$(CROSS_COMPILE)gcc$(FILE_EXT)
 LD=$(CROSS_COMPILE)ld$(FILE_EXT)
@@ -113,7 +114,7 @@ INC_DIR=$(HAL_INC) $(CMSIS_INC) $(INC) $(IOLIB_INC) $(SRC_DIRS)
 INC_FLAGS=$(INC_DIR:%=-I%) 
 
 DEF_FLAGS=-DUSE_HAL_DRIVER -DSTM32F767xx -D__weak=__attribute__\(\(weak\)\) -D__packed=__attribute__\(\(__packed__\)\) 
-DEF_FLAGS+=-DVERSION_STR=\"$(version_str)\" -DDATE_STR=\"$(date_str)\" -DBUILD_COUNT_STR=\"$(build_count_str)\"
+DEF_FLAGS+=-DDATE_STR=\"$(date_str)\" -DBUILD_COUNT_STR=\"$(build_count_str)\" -DTIME_STR=\"$(time_str)\"
 DEF_FLAGS+=-DZERO_ARRAY_IDX=1
 
 ARM_FLAGS=-mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb 
@@ -176,7 +177,11 @@ makedir:
 		mkdir $(BIN_DIR); \
 	fi
 
-build: makedir $(OBJS)
+.PHONY: refresh_build_str
+refresh_build_str:
+	$(Q)$(CC) $(CFLAGS) -c $(VERSION_INFO_FILE) -o $(VERSION_INFO_FILE:%.c=%.o)
+
+build: makedir refresh_build_str $(OBJS)
 	@echo build elf 
 	$(Q)$(CC) $(LDFLAGS) -o $(BIN_DIR)/$(TARGET).elf -Wl,-Map,$(BIN_DIR)/$(TARGET).map $(OBJS) 
 	$(Q)$(OC) -O binary $(BIN_DIR)/$(TARGET).elf $(BIN_DIR)/$(TARGET).bin

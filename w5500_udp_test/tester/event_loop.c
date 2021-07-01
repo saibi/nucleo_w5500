@@ -9,11 +9,13 @@
 */
 #include "event_loop.h"
 
+#include <version.h>
 #include <global_def.h>
 #include <macro.h>
 #include <wiz_appl.h>
 #include <tester.h>
 #include <comm_base.h>
+#include <comm_tcp.h>
 
 
 int event_loop_delay = 0;
@@ -38,6 +40,7 @@ void event_loop(void)
 		.dhcp = NETINFO_STATIC,
 	};
 
+	DPN("w5500 test v%s b%s %s %s", version_str, build_count_str, date_str, time_str);
 	malloc_test();
 
 	wiz_init_chip();
@@ -49,7 +52,7 @@ void event_loop(void)
 		comm_udp_server(1);
 		comm_tcp_client(0);
 
-		if ( run_per_x_seconds(&prev_tick, 10, CURRENT_TICK, TICKS_PER_SECOND) )
+		if ( run_per_x_seconds(&prev_tick, 60, CURRENT_TICK, TICKS_PER_SECOND) )
 		{
 			DPN("");
 		}
