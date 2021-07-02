@@ -136,12 +136,73 @@ static void dump_tcp_packet_list(void)
 	}
 }
 
+static int recv_remain_tcp_header(int sock)
+{
+	char *p; 
+
+	p = strstr(tcp_comm.header_buf, PREFIX_HEADER_ONLY);
+	if ( !p ) 
+		p = strstr(tcp_comm.header_buf, PREFIX_HAVE_DATA);
+
+	if ( !p )
+	{
+		DPN("invalid header");
+		console_writeb(tcp_comm.header_buf, TCP_HEADER_SIZE);
+		printf("\r\n");
+		clear_tcp_header();
+		return 0;
+	} 
+	else 
+	{
+		int offset = (p - tcp_comm.header_buf);
+		int ret;
+
+		memcpy(tcp_comm.header_buf, p, TCP_HEADER_SIZE - offset);
+		ret = wiz_recvb(sock, &tcp_comm.header_buf[offset], offset);
+		DPN("recv remain header %d bytes", ret);
+	}
+
+	return 1;
+}
+
+static void eat_tcp_data(int sock, int size)
+{
+	char buf[10];
+	int read_size = sizeof(buf);
+	int remain = size;
+	int received_size = 0;
+	int ret;
+
+	do 
+	{
+		if ( remain < read_size )
+			read_size = remain;
+
+		ret = recv(sock, (uint8_t *)buf, read_size);
+		if ( ret > 0 )
+		{
+			received_size += ret;
+			remain -= ret;
+		}
+		else 
+		{
+			DPN("recv ret = %d", ret);
+			HAL_Delay(10);
+		}
+	} while ( received_size < size );
+}
+
+
+#define WAIT 0
+#define RECV_REMAIN 1
 
 int comm_tcp_client(int sock)
 {
 	static int prev_state = -1;
 	int ret = 0;
 	int state = getSn_SR(sock);
+	static int recv_mode = WAIT;
+	int is_received = 0;
 
 	switch(state)
 	{
@@ -149,35 +210,77 @@ int comm_tcp_client(int sock)
 			if ( prev_state != state )
 				DPN("SOCK_ESTABLISHED");
 
-			if ( wait_tcp_header(sock) ) 
+			if ( recv_mode == WAIT)
+			{
+				is_received = wait_tcp_header(sock);
+			}
+			else if ( recv_mode == RECV_REMAIN ) 
+			{
+				is_received = recv_remain_tcp_header(sock);
+				recv_mode = WAIT;
+			}
+
+			if ( is_received == 1 ) 
 			{
 				int type;
 				int data_size = 0;
 				
 				type = check_tcp_header(tcp_comm.header_buf, &data_size );
 
-				printf("recv tcp header\r\n%s\r\n", tcp_comm.header_buf);
-
 				if ( type != TCP_PACKET_UNKNOWN )
 				{
 					struct tcp_packet_rec *p;
 
+					printf("recv tcp header\r\n%s\r\ntype=%d\r\n", tcp_comm.header_buf, type);
+
 					p = alloc_tcp_packet(type, data_size);
-					if ( p ) 
+					if ( !p ) 
 					{
-						memcpy(p->header, tcp_comm.header_buf, TCP_HEADER_SIZE);
-
-						list_add(&p->list, &tcp_packet_list);
+						if ( data_size > 0 ) 
+						{
+							DPN("eat data");
+							eat_tcp_data(sock, data_size);
+						}
+						break;
 					}
-					
 
+
+					memcpy(p->header, tcp_comm.header_buf, TCP_HEADER_SIZE);
+					if ( type == TCP_PACKET_HAVE_DATA ) 
+					{
+						ret = wiz_recvb(sock, p->data, data_size);
+						DPN("recv tcp data %d bytes", ret);
+						if ( ret != data_size ) 
+						{
+							// rebuild header 
+							DPN("data_size = %d, only %d bytes received", data_size, ret);
+							memset(p->header, 0, TCP_HEADER_SIZE);
+							sprintf(p->header, PREFIX_HAVE_DATA "%d d org data_size %d, only %d bytes received.", ret, data_size, ret);
+							p->data_size = ret;
+						}
+					}
+					list_add_tail(&p->list, &tcp_packet_list);
+
+
+					// echo packet
+
+					ret = wiz_sendb(sock, p->header, TCP_HEADER_SIZE);
+					printf("\r\nwiz_sendb header, ret = %d\r\n", ret);
+
+					if ( type == TCP_PACKET_HAVE_DATA ) 
+					{
+						ret = wiz_sendb(sock, p->data, p->data_size);
+						printf("\r\nwiz_sendb data, ret = %d\r\n", ret);
+					}
+
+					clear_tcp_header();
+				} 
+				else
+				{
+					DPN("unknown packet. mode = %d", recv_mode);
+					recv_mode = RECV_REMAIN;
 				}
-
-
-				ret = wiz_sendb(sock, tcp_comm.header_buf, TCP_HEADER_SIZE);
-				printf("\r\nwiz_sendb, ret = %d\r\n", ret);
-				clear_tcp_header();
-			}
+			} 
 			break;
 
 		case SOCK_CLOSE_WAIT:
@@ -187,8 +290,6 @@ int comm_tcp_client(int sock)
     			ret = disconnect(sock);
 			DPN("disconnect = %d", ret);
 
-			dump_tcp_packet_list();
-			free_tcp_packet_list();
 			break;
 
 		case SOCK_CLOSED:
@@ -197,6 +298,9 @@ int comm_tcp_client(int sock)
 
 			ret = close(sock);
 			DPN("close = %d", ret);
+
+			dump_tcp_packet_list();
+			free_tcp_packet_list();
 
 			ret = socket(sock, Sn_MR_TCP, 8277, SOCK_IO_NONBLOCK);
 			DPN("sock_tcp_client = %d", ret);

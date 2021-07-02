@@ -134,21 +134,33 @@ int wiz_sendb(int sock, char *buf, int size)
 	return sent_size;
 }
 
+#define MAX_RETRY 3
+
 /// block until (size) bytes received 
 int wiz_recvb(int sock, char *buf, int size)
 {
 	int ret = 0;
 	int recv_size = 0;
 	int remain_size = size;
+	int retry_count = 0;
 
 	do {
 		ret = recv(sock, (uint8_t*)&buf[recv_size], remain_size);
 		if ( ret < 0 ) 
 		{
 			DPN("recv error = %d", ret);
-			if ( recv_size > 0 )
-				DPN("%d bytes received", recv_size);
+			if ( retry_count <= MAX_RETRY )
+			{
+				retry_count++;
 
+				HAL_Delay(300);
+				continue;
+			}
+			if ( recv_size > 0 )
+			{
+				DPN("req %d bytes. only %d bytes received", size, recv_size);
+				return recv_size;
+			}
 			return ret;
 		}
 		remain_size -= ret;
