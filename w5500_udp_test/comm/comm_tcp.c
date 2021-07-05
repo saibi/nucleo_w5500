@@ -8,6 +8,9 @@
  *
 */
 
+// tcp packet #1
+#if 0
+
 #include "comm_tcp.h"
 #include "comm_base.h"
 #include <macro.h>
@@ -165,32 +168,6 @@ static int recv_remain_tcp_header(int sock)
 	return 1;
 }
 
-static void eat_tcp_data(int sock, int size)
-{
-	char buf[10];
-	int read_size = sizeof(buf);
-	int remain = size;
-	int received_size = 0;
-	int ret;
-
-	do 
-	{
-		if ( remain < read_size )
-			read_size = remain;
-
-		ret = recv(sock, (uint8_t *)buf, read_size);
-		if ( ret > 0 )
-		{
-			received_size += ret;
-			remain -= ret;
-		}
-		else 
-		{
-			DPN("recv ret = %d", ret);
-			HAL_Delay(10);
-		}
-	} while ( received_size < size );
-}
 
 
 #define WAIT 0
@@ -326,5 +303,6 @@ int comm_tcp_client(int sock)
 	prev_state = state;
 	return 0;
 }
+#endif 
 
 /********** end of file **********/
