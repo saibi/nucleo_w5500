@@ -26,6 +26,8 @@ void set_event_loop_delay(int val)
 	DPN("event_loop_delay = %d", event_loop_delay);
 }
 
+#define SOCK_TCP_8K 0
+#define SOCK_UDP 1
 
 void event_loop(void)
 {
@@ -49,8 +51,9 @@ void event_loop(void)
 	DPN("start main loop");
 	while (1)
 	{
-		comm_udp_server(1);
-		comm_tcp_client(0);
+		comm_udp_server(SOCK_UDP);
+		if ( comm_tcp_client(SOCK_TCP_8K) )
+			comm_tcp_packet_handler(SOCK_TCP_8K);
 
 		if ( run_per_x_seconds(&prev_tick, 60, CURRENT_TICK, TICKS_PER_SECOND) )
 		{

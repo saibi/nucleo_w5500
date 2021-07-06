@@ -13,9 +13,6 @@
 
 #include <llist.h>
 
-int comm_tcp_client(int sock);
-
-
 enum tcp_packet2_constants {
 	TCP_PACKET2_HEADER_IDX_FS = 0,
 	TCP_PACKET2_HEADER_IDX_MAGIC,
@@ -60,6 +57,11 @@ struct tcp_packet2_field_rec {
 	int checksum_size;
 	int contents_size;
 };
+
+
+
+int comm_tcp_client(int sock);
+void comm_tcp_packet_handler(int sock);
 
 #endif 
 /********** end of file **********/

@@ -376,12 +376,80 @@ static void free_tcp_packet2_list(struct list_head *phead)
 	INIT_LIST_HEAD(phead);
 }
 
+static struct tcp_packet2_rec * get_received_packet(struct list_head * phead)
+{
+	struct list_head * p;
+	struct tcp_packet2_rec *entry = NULL;
+
+	list_for_each(p, phead)
+	{
+		entry = list_entry(p, struct tcp_packet2_rec, list);
+		break;
+	}
+
+	if ( entry )
+		list_del(&entry->list);
+
+	return entry;
+}
+
+/// \return 0 success
+/// \return -1 header error
+/// \return -2 data error
+static int send_tcp_packet2(int sock, struct tcp_packet2_rec *packet)
+{
+	int ret;
+
+	ret = wiz_sendb(sock, packet->header, TCP_PACKET2_HEADER_SIZE);
+	if ( ret < 0 || ret != TCP_PACKET2_HEADER_SIZE )
+	{
+		DPN("send header failed");
+		return -1;
+	}
+
+	ret = wiz_sendb(sock, packet->data, packet->data_size);
+	if ( ret < 0 || ret != packet->data_size)
+	{
+		DPN("send data failed");
+		return -2;
+	}
+	return 0;
+}
+
+static void tcp_packet2_processor(int sock, struct list_head *phead)
+{
+	struct tcp_packet2_rec *packet;
+
+	packet = get_received_packet(phead);
+
+	if ( packet == NULL )
+		return ;
+
+	DPN("tcp_packet2 received. %d", TCP_PACKET2_HEADER_SIZE + packet->data_size);
+	print_tcp_packet2(packet, 40);
+
+	if ( packet->data_size > 0 )
+	{
+		DPN("echo tcp_packet2 data");
+		send_tcp_packet2(sock, packet);
+	} 
+	free(packet);
+}
+
+void comm_tcp_packet_handler(int sock)
+{
+	tcp_packet2_processor(sock, &packet_list);
+}
+
+/// \return 1 packet received
+/// \return 0 
 int comm_tcp_client(int sock)
 {
 	static int prev_state = -1;
 	int state = getSn_SR(sock);
 	int ret = 0;
 	struct tcp_packet2_rec *p;
+	int is_packet_received = 0;
 
 	switch(state)
 	{
@@ -392,10 +460,8 @@ int comm_tcp_client(int sock)
 			p = recv_tcp_packet2(sock);
 			if ( p )
 			{
-				DPN("tcp_packet2 received. %d", TCP_PACKET2_HEADER_SIZE + p->data_size);
-				print_tcp_packet2(p, 40);
-
 				list_add_tail(&p->list, &packet_list);
+				is_packet_received = 1;
 			}
 			break;
 
@@ -442,6 +508,7 @@ int comm_tcp_client(int sock)
 			break;
 	}
 	prev_state = state;
-	return 0;
+	return is_packet_received;
 }
+
 /********** end of file **********/
