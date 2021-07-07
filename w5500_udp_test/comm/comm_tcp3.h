@@ -46,26 +46,28 @@ enum tcp_packet3_constants {
 };
 
 
+struct tcp_packet3_field_rec {
+	unsigned char valid; // 1 - all fields are set
+
+	// from header
+	unsigned char version;
+	unsigned char flag;
+	unsigned char type;
+	unsigned short data_size;
+
+	// from data
+	unsigned short checksum;
+	unsigned short org_size;
+};
 
 struct tcp_packet3_rec {
 
 	struct list_head list;
 
-	int data_size;
+	struct tcp_packet3_field_rec field;
+
 	char header[TCP_PACKET3_HEADER_SIZE];
 	char data[ZERO_ARRAY_IDX];
-};
-
-struct tcp_packet3_field_rec {
-	// from header
-	int version;
-	int flag;
-	int type;
-	int data_size;
-
-	// from data
-	int checksum;
-	int org_size;
 };
 
 
