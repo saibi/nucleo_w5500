@@ -15,8 +15,13 @@
 #include <wiz_appl.h>
 #include <tester.h>
 #include <comm_base.h>
-#include <comm_tcp.h>
+#include <comm_tcp3.h>
 
+enum socket_idx 
+{
+	SOCKET_NO_TCP_8K = 0,
+	SOCKET_NO_UDP,
+};
 
 int event_loop_delay = 0;
 
@@ -25,9 +30,6 @@ void set_event_loop_delay(int val)
 	event_loop_delay = val;
 	DPN("event_loop_delay = %d", event_loop_delay);
 }
-
-#define SOCK_TCP_8K 0
-#define SOCK_UDP 1
 
 void event_loop(void)
 {
@@ -51,9 +53,9 @@ void event_loop(void)
 	DPN("start main loop");
 	while (1)
 	{
-		comm_udp_server(SOCK_UDP);
-		if ( comm_tcp_client(SOCK_TCP_8K) )
-			comm_tcp_packet_handler(SOCK_TCP_8K);
+		comm_udp_server(SOCKET_NO_UDP);
+		if ( comm_tcp_client(SOCKET_NO_TCP_8K) )
+			comm_tcp_packet_handler(SOCKET_NO_TCP_8K);
 
 		if ( run_per_x_seconds(&prev_tick, 60, CURRENT_TICK, TICKS_PER_SECOND) )
 		{

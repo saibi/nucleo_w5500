@@ -7,7 +7,6 @@
  * creation date : 2021/07/02 14:01:42 (KST)
  *
 */
-
 #ifndef _COMM_TCP2_H_
 #define _COMM_TCP2_H_
 

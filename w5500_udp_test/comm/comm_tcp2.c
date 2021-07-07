@@ -7,6 +7,10 @@
  * creation date : 2021/07/02 13:51:54 (KST)
  *
 */
+
+// tcp packet idea #2
+#if 0
+
 #include "comm_tcp2.h"
 #include "comm_base.h"
 #include <macro.h>
@@ -510,5 +514,6 @@ int comm_tcp_client(int sock)
 	prev_state = state;
 	return is_packet_received;
 }
+#endif 
 
 /********** end of file **********/
