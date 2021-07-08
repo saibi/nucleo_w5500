@@ -46,8 +46,9 @@ enum tcp_packet3_constants {
 };
 
 
-struct tcp_packet3_field_rec {
-	unsigned char valid; // 1 - all fields are set
+struct tcp_packet3_rec {
+
+	struct list_head list;
 
 	// from header
 	unsigned char version;
@@ -55,19 +56,13 @@ struct tcp_packet3_field_rec {
 	unsigned char type;
 	unsigned short data_size;
 
-	// from data
+	// from data (data_size > 0)
 	unsigned short checksum;
 	unsigned short org_size;
-};
 
-struct tcp_packet3_rec {
-
-	struct list_head list;
-
-	struct tcp_packet3_field_rec field;
-
+	// raw buffer
 	char header[TCP_PACKET3_HEADER_SIZE];
-	char data[ZERO_ARRAY_IDX];
+	char data[ZERO_ARRAY_IDX]; // dynamic allocated
 };
 
 

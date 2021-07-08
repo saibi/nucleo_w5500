@@ -54,38 +54,38 @@ static unsigned short get_tcp_packet3_header_data_size(char *header)
 	return convert_buf2short(&header[TCP_PACKET3_HEADER_IDX_DATASIZE0]);
 }
 
-static void tcp_packet3_header_to_field(char * header, struct tcp_packet3_field_rec * pfield)
+static void tcp_packet3_header_to_field(char * header, struct tcp_packet3_rec * p)
 {
-	pfield->version = header[TCP_PACKET3_HEADER_IDX_VER];
-	pfield->flag = header[TCP_PACKET3_HEADER_IDX_FLAG];
-	pfield->type= header[TCP_PACKET3_HEADER_IDX_CMD];
-	pfield->data_size = get_tcp_packet3_header_data_size(header);
+	p->version = header[TCP_PACKET3_HEADER_IDX_VER];
+	p->flag = header[TCP_PACKET3_HEADER_IDX_FLAG];
+	p->type= header[TCP_PACKET3_HEADER_IDX_CMD];
+	p->data_size = get_tcp_packet3_header_data_size(header);
 }
 
 static void fill_tcp_packet3_data_field(struct tcp_packet3_rec *p)
 {
 	int offset = 0;
 
-	if ( p->field.data_size == 0 )
+	p->checksum = 0;
+	p->org_size = 0;
+
+	if ( p->data_size == 0 )
 		return;
 
-	p->field.checksum = 0;
-	if ( p->field.flag & TCP_PACKET3_FLAG_BIT_CHECKSUM )
+	if ( p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM )
 	{
-		p->field.checksum = convert_buf2short(&p->data[offset]);
+		p->checksum = convert_buf2short(&p->data[offset]);
 		offset += TCP_PACKET3_DATA_CHECKSUM_LEN;
 	}
 
-	if ( p->field.flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION )
+	if ( p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION )
 	{
-		p->field.org_size = convert_buf2short(&p->data[offset]);
+		p->org_size = convert_buf2short(&p->data[offset]);
 	}
 	else 
 	{
-		p->field.org_size = p->field.data_size - offset;
+		p->org_size = p->data_size - offset;
 	}
-
-	p->field.valid = 1;
 }
 
 #if 0
@@ -125,33 +125,33 @@ static void print_tcp_packet3(struct tcp_packet3_rec *p, int dump_contents_len)
 	int offset = 0;
 
 	printf("[%d|%d(0x%x)|%d|%d]", 
-		p->field.version,
-		p->field.flag, 
-		p->field.flag,
-		p->field.type,
-		p->field.data_size
+		p->version,
+		p->flag, 
+		p->flag,
+		p->type,
+		p->data_size
 		);
 
-	if ( p->field.flag & TCP_PACKET3_FLAG_BIT_CHECKSUM )
+	if ( p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM )
 	{
-		printf("[%d]", p->field.checksum);
+		printf("[%d]", p->checksum);
 		offset += TCP_PACKET3_DATA_CHECKSUM_LEN;
 	}
 
-	if ( p->field.flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION )
+	if ( p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION )
 	{
-		printf("[%d]", p->field.org_size);
+		printf("[%d]", p->org_size);
 		offset += TCP_PACKET3_DATA_ORGSIZE_LEN;
 	}
 
 	printf("\r\n");
 
-	if ( p->field.data_size > 0 && dump_contents_len > 0 )
+	if ( p->data_size > 0 && dump_contents_len > 0 )
 	{
 		int max = dump_contents_len;
 
-		if ( max > p->field.data_size )
-			max = p->field.data_size;
+		if ( max > p->data_size )
+			max = p->data_size;
 
 		console_writeb(&p->data[offset], max);
 		printf("\r\n");
@@ -211,10 +211,7 @@ static struct tcp_packet3_rec * alloc_tcp_packet3_mem(char *header, int data_siz
 		return NULL;
 	}
 	memcpy(p->header, header, TCP_PACKET3_HEADER_SIZE);
-	tcp_packet3_header_to_field(header, &p->field);
-
-	if ( data_size == 0 )
-		p->field.valid = 1;
+	tcp_packet3_header_to_field(header, p);
 
 	return p;
 }
@@ -269,7 +266,7 @@ static struct tcp_packet3_rec * recv_tcp_packet3(int sock)
 	switch(recv_mode) 
 	{
 	case RECV_DATA:
-		recv_size = packet->field.data_size - received_size;
+		recv_size = packet->data_size - received_size;
 
 		ret = recv(sock, (uint8_t*)&packet->data[received_size], recv_size);
 		if ( ret < 0 )
@@ -279,7 +276,7 @@ static struct tcp_packet3_rec * recv_tcp_packet3(int sock)
 		}
 
 		received_size += ret;
-		if ( received_size < packet->field.data_size )
+		if ( received_size < packet->data_size )
 			break;
 		
 		p = packet;
@@ -364,10 +361,10 @@ static unsigned short calc_checksum(char *contents, int contents_len)
 /// \return 0 checksum error
 static int veryfy_tcp_packet3_checksum(struct tcp_packet3_rec *p)
 {
-	if ( p->field.data_size > 0 && p->field.flag & TCP_PACKET3_FLAG_BIT_CHECKSUM )
+	if ( p->data_size > 0 && p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM )
 	{
-		int calc = calc_checksum(&p->data[TCP_PACKET3_DATA_CHECKSUM_LEN], p->field.data_size - TCP_PACKET3_DATA_CHECKSUM_LEN);
-		return (calc == p->field.checksum);
+		int calc = calc_checksum(&p->data[TCP_PACKET3_DATA_CHECKSUM_LEN], p->data_size - TCP_PACKET3_DATA_CHECKSUM_LEN);
+		return (calc == p->checksum);
 	}
 	return 1;
 }
@@ -440,10 +437,10 @@ static int send_tcp_packet3(int sock, struct tcp_packet3_rec *packet)
 		return -1;
 	}
 
-	if ( packet->field.data_size > 0 )
+	if ( packet->data_size > 0 )
 	{
-		ret = wiz_sendb(sock, packet->data, packet->field.data_size);
-		if ( ret < 0 || ret != packet->field.data_size)
+		ret = wiz_sendb(sock, packet->data, packet->data_size);
+		if ( ret < 0 || ret != packet->data_size)
 		{
 			DPN("send data failed");
 			return -2;
@@ -461,12 +458,13 @@ static void tcp_packet3_processor(int sock, struct list_head *phead)
 	if ( packet == NULL )
 		return ;
 
-	DPN("tcp_packet3 received. %d, %s", TCP_PACKET3_HEADER_SIZE + packet->field.data_size, 
+	DPN("tcp_packet3 received. %d, %s", TCP_PACKET3_HEADER_SIZE + packet->data_size, 
 		veryfy_tcp_packet3_checksum(packet) ? "ok" : "checksum err");
 
 	print_tcp_packet3(packet, 40);
 
-	if ( packet->field.data_size > 0 )
+	// test echo 
+	if ( packet->data_size > 0 )
 	{
 		DPN("echo packet");
 		send_tcp_packet3(sock, packet);
