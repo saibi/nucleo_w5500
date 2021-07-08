@@ -34,7 +34,6 @@ static unsigned short convert_buf2short(char *buf)
 	return conv.val;
 }
 
-#if 0
 static void convert_short2buf(unsigned short val, char *buf)
 {
 	union {
@@ -47,7 +46,6 @@ static void convert_short2buf(unsigned short val, char *buf)
 	buf[0] = conv.buf[0];
 	buf[1] = conv.buf[1];
 }
-#endif 
 
 static unsigned short get_tcp_packet3_header_data_size(char *header)
 {
@@ -58,7 +56,7 @@ static void tcp_packet3_header_to_field(char * header, struct tcp_packet3_rec * 
 {
 	p->version = header[TCP_PACKET3_HEADER_IDX_VER];
 	p->flag = header[TCP_PACKET3_HEADER_IDX_FLAG];
-	p->type= header[TCP_PACKET3_HEADER_IDX_CMD];
+	p->type= header[TCP_PACKET3_HEADER_IDX_TYPE];
 	p->data_size = get_tcp_packet3_header_data_size(header);
 }
 
@@ -369,6 +367,170 @@ static int veryfy_tcp_packet3_checksum(struct tcp_packet3_rec *p)
 	return 1;
 }
 
+static inline int is_packet_encrypted(struct tcp_packet3_rec * p)
+{
+	return (p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION) ? 1 : 0;
+}
+
+static inline int get_packet_plain_contents_size(struct tcp_packet3_rec * p)
+{
+	return p->org_size;
+}
+
+static int encrypt_contents(char *in, int in_size, char *out)
+{
+	// TO-DO : encryption
+	
+
+	// test encription, append "encrypt "
+	memcpy(out, "encrypt ", 8);
+	memcpy(&out[8], in, in_size);
+
+	return in_size + 8;
+}
+
+static int decrypt_contents(char *in, int in_size, char *out)
+{
+	// TO-DO : decryption
+	
+
+	// test decription, remove "encrypt "
+	int out_size = in_size - 8;
+	memcpy(out, &in[8], out_size); 
+	return out_size;
+}
+
+/// \param p packet pointer 
+/// \return plain contents (dynamically allocated)
+/// \return NULL plain packet
+static char * extract_contents_from_encrypted_packet(struct tcp_packet3_rec *p)
+{
+	char * buf;
+	int offset = 0;
+
+	if ( is_packet_encrypted(p) && get_packet_plain_contents_size(p) > 0 )
+	{
+		buf = (char*)malloc(get_packet_plain_contents_size(p) + 1);
+		if ( buf == NULL )
+		{
+			DPN("insufficient memory.");
+			return NULL;
+		}
+		offset += TCP_PACKET3_DATA_ORGSIZE_LEN;
+		if ( p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM )
+			offset += TCP_PACKET3_DATA_CHECKSUM_LEN;
+
+		decrypt_contents(&p->data[offset], p->data_size - offset, buf);
+		return buf;
+	}
+	return NULL;
+}
+
+static void fill_default_header(char *header)
+{
+	header[TCP_PACKET3_HEADER_IDX_FS] = RC_FS;
+	header[TCP_PACKET3_HEADER_IDX_MAGIC] = RC_MAGIC;
+	header[TCP_PACKET3_HEADER_IDX_VER] = TCP_PACKET3_VERSION;
+	header[TCP_PACKET3_HEADER_IDX_FLAG] = TCP_PACKET3_FLAG_NONE;
+	header[TCP_PACKET3_HEADER_IDX_TYPE] = TCP_PACKET3_TYPE_NONE;
+	header[TCP_PACKET3_HEADER_IDX_DATASIZE0] = 0;
+	header[TCP_PACKET3_HEADER_IDX_DATASIZE1] = 0;
+	header[TCP_PACKET3_HEADER_IDX_GS] = RC_GS;
+}
+
+static int create_tcp_packet3_header(char * header, int flag, int type, int contents_size)
+{
+	int data_size = contents_size;
+
+	fill_default_header(header);
+	header[TCP_PACKET3_HEADER_IDX_FLAG] = flag & TCP_PACKET3_FIELD_MASK;
+	header[TCP_PACKET3_HEADER_IDX_TYPE] = type & TCP_PACKET3_FIELD_MASK;
+
+	if ( flag & TCP_PACKET3_FLAG_BIT_CHECKSUM ) 
+		data_size += TCP_PACKET3_DATA_CHECKSUM_LEN;
+
+	if ( flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION ) 
+		data_size += TCP_PACKET3_DATA_ORGSIZE_LEN;
+
+	convert_short2buf(data_size, &header[TCP_PACKET3_HEADER_IDX_DATASIZE0]);
+
+	return data_size;
+}
+
+
+static struct tcp_packet3_rec * create_tcp_packet3(int flag, int type, char *contents, int contents_size)
+{
+	char *buf = NULL;
+	unsigned short buf_size = 0;
+	unsigned short data_size = 0;
+	struct tcp_packet3_rec * p;
+	char header[TCP_PACKET3_HEADER_SIZE];
+	int offset = 0;
+
+	if ( contents_size > TCP_PACKET3_MAX_CONTENTS_SIZE ) 
+	{
+		DPN("too large contents");
+		return NULL;
+	}
+
+	if ( contents != NULL && contents_size > 0 )
+	{
+		if ( flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION ) 
+		{
+
+			// test encryption
+
+			buf = (char *)malloc( contents_size + 8 );
+			if ( buf == NULL )
+			{
+				DPN("insufficient memory");
+				return NULL;
+			}
+
+			buf_size = encrypt_contents(contents, contents_size, buf);
+			offset += TCP_PACKET3_DATA_ORGSIZE_LEN;
+		}
+		else 
+		{
+			buf = contents;
+			buf_size = contents_size;
+		}
+
+		if ( flag & TCP_PACKET3_FLAG_BIT_CHECKSUM ) 
+			offset += TCP_PACKET3_DATA_CHECKSUM_LEN;
+	}
+
+	data_size = create_tcp_packet3_header(header, flag, type, buf_size);
+	p = alloc_tcp_packet3_mem(header, data_size);
+	if ( p == NULL )
+	{
+		if ( flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION ) 
+			free(buf);
+
+		return NULL;
+	}
+
+	if ( contents == NULL || contents_size <= 0 )
+		return p;
+
+	memcpy(&p->data[offset], buf, buf_size);
+	p->org_size = contents_size;
+	if ( flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION ) 
+	{
+		free(buf);
+		convert_short2buf(p->org_size, &p->data[offset - TCP_PACKET3_DATA_ORGSIZE_LEN]);
+	}
+
+	if ( flag & TCP_PACKET3_FLAG_BIT_CHECKSUM ) 
+	{
+		p->checksum = calc_checksum(&p->data[TCP_PACKET3_DATA_CHECKSUM_LEN], data_size - TCP_PACKET3_DATA_CHECKSUM_LEN );
+		DPN("DBG checksum = %d", p->checksum);
+		convert_short2buf(p->checksum, p->data);
+	}
+
+	return p;
+}
+
 static void dump_tcp_packet3_list(struct list_head *phead)
 {
 	struct list_head * p;
@@ -451,25 +613,45 @@ static int send_tcp_packet3(int sock, struct tcp_packet3_rec *packet)
 
 static void tcp_packet3_processor(int sock, struct list_head *phead)
 {
-	struct tcp_packet3_rec *packet;
+	struct tcp_packet3_rec *p;
+	char *buf;
 
-	packet = get_received_packet(phead);
-
-	if ( packet == NULL )
+	p = get_received_packet(phead);
+	if ( p == NULL )
 		return ;
 
-	DPN("tcp_packet3 received. %d, %s", TCP_PACKET3_HEADER_SIZE + packet->data_size, 
-		veryfy_tcp_packet3_checksum(packet) ? "ok" : "checksum err");
+	DPN("tcp_packet3 received. %d, %s", TCP_PACKET3_HEADER_SIZE + p->data_size, 
+		veryfy_tcp_packet3_checksum(p) ? "ok" : "checksum err");
 
-	print_tcp_packet3(packet, 40);
+	print_tcp_packet3(p, 40);
 
-	// test echo 
-	if ( packet->data_size > 0 )
+	buf = extract_contents_from_encrypted_packet(p);
+	if ( buf )
 	{
-		DPN("echo packet");
-		send_tcp_packet3(sock, packet);
-	} 
-	free(packet);
+		struct tcp_packet3_rec * p_send;
+
+		DPN("decrypt data, org_size = %d", p->org_size);
+		console_writeb(buf, 40);
+		printf("\r\n");
+
+
+		// packet send test
+
+		// create plain packet
+		p_send = create_tcp_packet3(0, 0, buf, p->org_size);
+		if ( p_send )
+		{
+			DPN("echo plain packet");
+			send_tcp_packet3(sock, p_send);
+
+			free(p_send);
+		}
+		free(buf);
+
+		DPN("echo org packet");
+		send_tcp_packet3(sock, p);
+	}
+	free(p);
 }
 
 void comm_tcp_packet_handler(int sock)
