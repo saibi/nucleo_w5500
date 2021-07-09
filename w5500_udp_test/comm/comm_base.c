@@ -8,99 +8,46 @@
  *
 */
 #include "comm_base.h"
+#include "comm_udp.h"
+#include "comm_tcp3.h"
+#include <global_def.h>
 #include <macro.h>
-#include <socket.h>
-#include <stdlib.h>
-#include <event_loop.h>
 #include <wiz_appl.h>
+#include <tester.h>
 
+enum socket_idx 
+{
+	SOCKET_NO_TCP_8K = 0,
+	SOCKET_NO_UDP,
+};
 
 struct comm_meta_rec comm;
 
+static wiz_NetInfo netinfo = {
+	.mac = {0x00, 0x08, 0xdc, 0xab, 0xcd, 0x44},
+	.ip = {172, 10, 150, 131},
+	.sn = {255, 255, 0, 0},
+	.gw = {172, 10, 255, 254},
+	.dns = {172, 16, 4, 3},
+	.dhcp = NETINFO_STATIC,
+};
 
-int comm_udp_server(int sock)
+void comm_handler(void)
 {
-	struct ip_port_rec sender;
-	char recv_dgram[MAX_EW_DGRAM+1];
-	int ret;
-	static int prev_state = -1;
-	int state = getSn_SR(sock);
-
-	switch(state)
+	switch( comm.operation ) 
 	{
-		case SOCK_CLOSED:
-			if ( prev_state != state )
-				DPN("SOCK_CLOSED");
+	case OP_DHCP:
+		wiz_set_dhcp_ip(&netinfo);
+		comm.operation = OP_WAIT;
+		break;
 
-			ret = socket(sock, Sn_MR_UDP, UDP_SERVER_PORT, SOCK_IO_NONBLOCK);
-			DPN("socket = %d", ret);
-			DPN("listen udp %d port", UDP_SERVER_PORT);
-			break;
+	default:
+		comm_udp_server(SOCKET_NO_UDP);
 
-		case SOCK_UDP:
-			if ( prev_state != state )
-				DPN("SOCK_UDP");
+		if ( comm_tcp_client(SOCKET_NO_TCP_8K) )
+			comm_tcp_packet_handler(SOCKET_NO_TCP_8K);
 
-			ret = recvfrom(sock, (uint8_t*)recv_dgram, sizeof(recv_dgram) - 1, sender.ip, &sender.port);
-			if ( ret > 0 ) 
-			{
-				printf("recv %d bytes from ", ret);
-				prn_ip_port(&sender);
-				recv_dgram[ret] = 0;
-				console_writeb(recv_dgram, ret);
-				printf("\r\n");
-
-				if ( strncmp(recv_dgram, "ew hello", 8) == 0 )
-				{
-					char dgram[MAX_EW_DGRAM] = { 0, };
-
-					DPN("ew hello received. reply ready");
-					strncpy(dgram, "ew ready w5500", sizeof(dgram) - 1);
-					ret = sendto(sock, (uint8_t *)dgram, strlen(dgram), sender.ip, sender.port);
-					printf("sendto, ret = %d\r\n", ret);
-				}
-				else if ( strncmp(recv_dgram, "ew con ", 7 ) == 0 )
-				{
-					char * port_ptr = NULL;
-					char * id_ptr = NULL;
-
-					port_ptr = strtok(&recv_dgram[7], " ");
-					if ( port_ptr )
-						id_ptr = strtok(NULL, " ");
-					
-					if ( id_ptr )
-					{
-						DPN("ew con received. port [%s] , id [%s]", port_ptr, id_ptr);
-
-						if ( strncmp(id_ptr, "w5500", 6) == 0 )
-						{
-							DPN("verify ok");
-							COPY_IP_ADDR(comm.host.ip, sender.ip);
-							comm.host.port = atoi(port_ptr);
-							comm.operation = OP_CONNECT_HOST;
-						}
-					}
-
-				}
-				else if ( strncmp(recv_dgram, "ew delay ", 9 ) == 0 )
-				{
-					set_event_loop_delay(atoi(&recv_dgram[9]));
-				}
-				else 
-				{
-					// echo
-					DPN("echo udp datagram.");
-					ret = sendto(sock, (uint8_t*)recv_dgram, ret, sender.ip, sender.port);
-					printf("sendto, ret = %d\r\n", ret);
-				}
-			}
-			break;
-
-		default:
-			break;
+		break;
 	}
-	prev_state = state;
-	return 0;
 }
-
 /********** end of file **********/

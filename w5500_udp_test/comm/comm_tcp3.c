@@ -367,6 +367,7 @@ static int veryfy_tcp_packet3_checksum(struct tcp_packet3_rec *p)
 	return 1;
 }
 
+
 static inline int is_packet_encrypted(struct tcp_packet3_rec * p)
 {
 	return (p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION) ? 1 : 0;
@@ -375,6 +376,11 @@ static inline int is_packet_encrypted(struct tcp_packet3_rec * p)
 static inline int get_packet_plain_contents_size(struct tcp_packet3_rec * p)
 {
 	return p->org_size;
+}
+
+static inline int get_packet_contents_size(struct tcp_packet3_rec * p)
+{
+	return (p->data_size - ((p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM) ? TCP_PACKET3_DATA_CHECKSUM_LEN : 0) - ((p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION) ? TCP_PACKET3_DATA_ORGSIZE_LEN : 0 ));
 }
 
 static int encrypt_contents(char *in, int in_size, char *out)
@@ -400,13 +406,53 @@ static int decrypt_contents(char *in, int in_size, char *out)
 	return out_size;
 }
 
+static inline char * get_packet_contents_buf(struct tcp_packet3_rec * p)
+{
+	return &p->data[ ((p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM) ? TCP_PACKET3_DATA_CHECKSUM_LEN : 0 ) + ((p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION) ? TCP_PACKET3_DATA_ORGSIZE_LEN : 0 ) ];
+}
+
 /// \param p packet pointer 
-/// \return plain contents (dynamically allocated)
+/// \return contents (dynamic allocated)
+static char * extract_packet_contents(struct tcp_packet3_rec *p)
+{
+	int contents_size;
+	char *buf;
+
+	if ( p->data_size == 0 )
+		return NULL;
+
+	contents_size = get_packet_contents_size(p);
+
+	if ( is_packet_encrypted(p) )
+	{
+		buf = (char*)malloc(get_packet_plain_contents_size(p) + 1);
+		if ( buf == NULL )
+		{
+			DPN("insufficient memory.");
+			return NULL;
+		}
+		decrypt_contents(get_packet_contents_buf(p), contents_size, buf);
+	}
+	else
+	{
+		buf = (char*)malloc(contents_size + 1);
+		if ( buf == NULL )
+		{
+			DPN("insufficient memory.");
+			return NULL;
+		}
+		memcpy(buf, get_packet_contents_buf(p), contents_size);
+	}
+	return buf;
+}
+
+#if 0
+/// \param p packet pointer 
+/// \return plain contents (dynamic allocated)
 /// \return NULL plain packet
 static char * extract_contents_from_encrypted_packet(struct tcp_packet3_rec *p)
 {
 	char * buf;
-	int offset = 0;
 
 	if ( is_packet_encrypted(p) && get_packet_plain_contents_size(p) > 0 )
 	{
@@ -416,15 +462,13 @@ static char * extract_contents_from_encrypted_packet(struct tcp_packet3_rec *p)
 			DPN("insufficient memory.");
 			return NULL;
 		}
-		offset += TCP_PACKET3_DATA_ORGSIZE_LEN;
-		if ( p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM )
-			offset += TCP_PACKET3_DATA_CHECKSUM_LEN;
 
-		decrypt_contents(&p->data[offset], p->data_size - offset, buf);
+		decrypt_contents(get_packet_contents_buf(p), get_packet_contents_size(p), buf);
 		return buf;
 	}
 	return NULL;
 }
+#endif 
 
 static void fill_default_header(char *header)
 {
@@ -611,6 +655,73 @@ static int send_tcp_packet3(int sock, struct tcp_packet3_rec *packet)
 	return 0;
 }
 
+/// \return cmdline (dynamic allocated)
+static char * get_cmdline_from_packet(struct tcp_packet3_rec *p)
+{
+	if ( p->type != TCP_PACKET3_TYPE_CMDLINE || p->data_size == 0 )
+		return NULL;
+
+	return extract_packet_contents(p);
+}
+
+/// \param pp_name (out) file name (dynamic allocated)
+/// \param pp_file (out) file contents (dynamic allocated)
+/// \return file size
+static int get_file_from_packet(struct tcp_packet3_rec *p, char **pp_name, char **pp_file)
+{
+	char *buf;
+	char *p_file;
+	int size = 0;
+	int info_size;
+	int file_size;
+
+	if ( p->type != TCP_PACKET3_TYPE_SMALLFILE || p->data_size == 0 )
+		return 0;
+
+	buf = extract_packet_contents(p);
+	if ( buf == NULL )
+		return 0;
+
+	size = get_packet_contents_size(p);
+
+	p_file = memchr(buf, '\0', size);
+	if ( p_file == NULL )
+	{
+		free(buf);
+		return 0;
+	}
+	p_file++;
+	info_size = (p_file - buf);
+
+	if ( pp_name )
+	{
+		*pp_name = (char*)malloc(info_size);
+		if ( *pp_name == NULL )
+		{
+			DPN("insufficient memory");
+			free(buf);
+			return 0;
+		}
+		memcpy(*pp_name, buf, info_size);
+	}
+
+	file_size = size - info_size;
+
+	if ( pp_file ) 
+	{
+		*pp_file = (char*)malloc(file_size);
+		if ( *pp_file == NULL )
+		{
+			DPN("insufficient memory");
+			free(buf);
+			return 0;
+		}
+		memcpy(*pp_file, p_file, file_size);
+	}
+	free(buf);
+	return file_size;
+}
+
 static void tcp_packet3_processor(int sock, struct list_head *phead)
 {
 	struct tcp_packet3_rec *p;
@@ -625,31 +736,68 @@ static void tcp_packet3_processor(int sock, struct list_head *phead)
 
 	print_tcp_packet3(p, 40);
 
-	buf = extract_contents_from_encrypted_packet(p);
-	if ( buf )
+	if ( is_packet_encrypted(p) )
 	{
 		struct tcp_packet3_rec * p_send;
 
-		DPN("decrypt data, org_size = %d", p->org_size);
-		console_writeb(buf, 40);
-		printf("\r\n");
-
-
-		// packet send test
-
-		// create plain packet
-		p_send = create_tcp_packet3(0, 0, buf, p->org_size);
-		if ( p_send )
+		buf = extract_packet_contents(p);
+		if ( buf ) 
 		{
-			DPN("echo plain packet");
-			send_tcp_packet3(sock, p_send);
+			DPN("decrypt data, org_size = %d", p->org_size);
+			console_writeb(buf, 40);
+			printf("\r\n");
 
-			free(p_send);
+			// packet send test
+
+			// create plain packet
+			p_send = create_tcp_packet3(0, 0, buf, p->org_size);
+			if ( p_send )
+			{
+				DPN("echo plain packet");
+				send_tcp_packet3(sock, p_send);
+
+				free(p_send);
+			}
+			free(buf);
 		}
-		free(buf);
+	}
 
-		DPN("echo org packet");
+	switch (p->type)
+	{
+	case TCP_PACKET3_TYPE_CMDLINE:
+		DPN("packet type = %d, echo packet", p->type);
+		buf = get_cmdline_from_packet(p);
+		if ( buf )
+		{
+			printf("%s\r\n",buf);
+			free(buf);
+		}
+		
 		send_tcp_packet3(sock, p);
+		break;
+
+	case TCP_PACKET3_TYPE_SMALLFILE:
+	{
+		char *filename = NULL;
+		char *file = NULL;
+		int file_size = 0;
+		
+		file_size = get_file_from_packet(p, &filename, &file); 
+		if ( file_size > 0 ) 
+		{
+			DPN("small file, filesize = %d", file_size);
+			DPN("%s", filename);
+			DPN("%s", file);
+
+			free(filename);
+			free(file);
+		}
+
+	}
+		break;
+
+	default:
+		break;
 	}
 	free(p);
 }
@@ -705,6 +853,9 @@ int comm_tcp_client(int sock)
 
 			ret = socket(sock, Sn_MR_TCP, port, SOCK_IO_NONBLOCK);
 			DPN("sock_tcp_client = %d, port = %d", ret, port);
+			if ( ret == SOCKERR_SOCKINIT )
+				comm.operation = OP_DHCP;
+
 			break;
 
 		case SOCK_INIT:

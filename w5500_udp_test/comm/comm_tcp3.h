@@ -39,7 +39,9 @@ enum tcp_packet3_constants {
 
 	// type 
 	TCP_PACKET3_TYPE_NONE = 0,
-	TCP_PACKET3_TYPE_CMDLINE = 1,
+	TCP_PACKET3_TYPE_CMDLINE, 
+	TCP_PACKET3_TYPE_SMALLFILE ,
+
 
 	// reserved characters
 	RC_MAGIC = 0x42,

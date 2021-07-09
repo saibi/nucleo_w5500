@@ -14,11 +14,10 @@
 #include <helper.h>
 
 enum operation_list {
+	OP_DHCP,
 	OP_WAIT, 
 	OP_CONNECT_HOST,
 };
-
-#define MAX_EW_DGRAM 40
 
 struct comm_meta_rec {
 	struct ip_port_rec host;
@@ -26,9 +25,9 @@ struct comm_meta_rec {
 	int operation;
 };
 
-#define UDP_SERVER_PORT 8279
+void comm_handler(void);
 
-int comm_udp_server(int sock);
+extern struct comm_meta_rec comm;
 
 #endif 
 /********** end of file **********/
