@@ -139,7 +139,7 @@ static void print_tcp_packet3(struct tcp_packet3_rec *p, int dump_contents_len)
 	if ( p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION )
 	{
 		printf("[%d]", p->org_size);
-		offset += TCP_PACKET3_DATA_ORGSIZE_LEN;
+		offset += TCP_PACKET3_DATA_SIZE_LEN;
 	}
 
 	printf("\r\n");
@@ -380,7 +380,7 @@ static inline int get_packet_plain_contents_size(struct tcp_packet3_rec * p)
 
 static inline int get_packet_contents_size(struct tcp_packet3_rec * p)
 {
-	return (p->data_size - ((p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM) ? TCP_PACKET3_DATA_CHECKSUM_LEN : 0) - ((p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION) ? TCP_PACKET3_DATA_ORGSIZE_LEN : 0 ));
+	return (p->data_size - ((p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM) ? TCP_PACKET3_DATA_CHECKSUM_LEN : 0) - ((p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION) ? TCP_PACKET3_DATA_SIZE_LEN : 0 ));
 }
 
 static int encrypt_contents(char *in, int in_size, char *out)
@@ -408,7 +408,7 @@ static int decrypt_contents(char *in, int in_size, char *out)
 
 static inline char * get_packet_contents_buf(struct tcp_packet3_rec * p)
 {
-	return &p->data[ ((p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM) ? TCP_PACKET3_DATA_CHECKSUM_LEN : 0 ) + ((p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION) ? TCP_PACKET3_DATA_ORGSIZE_LEN : 0 ) ];
+	return &p->data[ ((p->flag & TCP_PACKET3_FLAG_BIT_CHECKSUM) ? TCP_PACKET3_DATA_CHECKSUM_LEN : 0 ) + ((p->flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION) ? TCP_PACKET3_DATA_SIZE_LEN : 0 ) ];
 }
 
 /// \param p packet pointer 
@@ -494,7 +494,7 @@ static int create_tcp_packet3_header(char * header, int flag, int type, int cont
 		data_size += TCP_PACKET3_DATA_CHECKSUM_LEN;
 
 	if ( flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION ) 
-		data_size += TCP_PACKET3_DATA_ORGSIZE_LEN;
+		data_size += TCP_PACKET3_DATA_SIZE_LEN;
 
 	convert_short2buf(data_size, &header[TCP_PACKET3_HEADER_IDX_DATASIZE0]);
 
@@ -532,7 +532,7 @@ static struct tcp_packet3_rec * create_tcp_packet3(int flag, int type, char *con
 			}
 
 			buf_size = encrypt_contents(contents, contents_size, buf);
-			offset += TCP_PACKET3_DATA_ORGSIZE_LEN;
+			offset += TCP_PACKET3_DATA_SIZE_LEN;
 		}
 		else 
 		{
@@ -562,7 +562,7 @@ static struct tcp_packet3_rec * create_tcp_packet3(int flag, int type, char *con
 	if ( flag & TCP_PACKET3_FLAG_BIT_ENCRYPTION ) 
 	{
 		free(buf);
-		convert_short2buf(p->org_size, &p->data[offset - TCP_PACKET3_DATA_ORGSIZE_LEN]);
+		convert_short2buf(p->org_size, &p->data[offset - TCP_PACKET3_DATA_SIZE_LEN]);
 	}
 
 	if ( flag & TCP_PACKET3_FLAG_BIT_CHECKSUM ) 
@@ -671,9 +671,10 @@ static int get_file_from_packet(struct tcp_packet3_rec *p, char **pp_name, char 
 {
 	char *buf;
 	char *p_file;
-	int size = 0;
-	int info_size;
+	int contents_size = 0;
+	int filename_size;
 	int file_size;
+	int calc_file_size;
 
 	if ( p->type != TCP_PACKET3_TYPE_SMALLFILE || p->data_size == 0 )
 		return 0;
@@ -682,30 +683,41 @@ static int get_file_from_packet(struct tcp_packet3_rec *p, char **pp_name, char 
 	if ( buf == NULL )
 		return 0;
 
-	size = get_packet_contents_size(p);
+	contents_size = get_packet_plain_contents_size(p);
 
-	p_file = memchr(buf, '\0', size);
+	p_file = memchr(buf, '\0', contents_size);
 	if ( p_file == NULL )
 	{
 		free(buf);
 		return 0;
 	}
 	p_file++;
-	info_size = (p_file - buf);
+	filename_size = (p_file - buf);
 
 	if ( pp_name )
 	{
-		*pp_name = (char*)malloc(info_size);
+		*pp_name = (char*)malloc(filename_size);
 		if ( *pp_name == NULL )
 		{
 			DPN("insufficient memory");
 			free(buf);
 			return 0;
 		}
-		memcpy(*pp_name, buf, info_size);
+		memcpy(*pp_name, buf, filename_size);
 	}
 
-	file_size = size - info_size;
+	file_size = convert_buf2short(p_file);
+	p_file += TCP_PACKET3_DATA_SIZE_LEN;
+	calc_file_size = contents_size - filename_size - TCP_PACKET3_DATA_SIZE_LEN;
+
+	DPN("DBG file_size = %d, calc_file_size = %d", file_size, calc_file_size);
+
+	if ( file_size != calc_file_size ) 
+	{
+		DPN("filesize mismatch");
+		free(buf);
+		return 0;
+	}
 
 	if ( pp_file ) 
 	{
@@ -787,7 +799,7 @@ static void tcp_packet3_processor(int sock, struct list_head *phead)
 		{
 			DPN("small file, filesize = %d", file_size);
 			DPN("%s", filename);
-			DPN("%s", file);
+			console_writeb(file, file_size);
 
 			free(filename);
 			free(file);
