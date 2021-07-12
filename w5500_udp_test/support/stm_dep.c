@@ -9,16 +9,33 @@
 */
 #include "stm_dep.h"
 
+#define MAX_TRANSFER 65535
+#define WRITE_TPMS (115200/8/2/1000)
+
 void console_writeb(char *buf, int size)
 {
+	int wait = 50;
 	int write_size = 0;
 	int remain_size = size;
-
+	int transferred = 0;
+	uint16_t transfer;
+	
 	while ( remain_size > 0 )
 	{
-        	HAL_UART_Transmit(&huart3, (uint8_t *)&buf[write_size], remain_size, 50);
-		write_size = remain_size - huart3.TxXferCount;
-		remain_size = huart3.TxXferCount;
+		if ( remain_size > MAX_TRANSFER )
+			transfer = MAX_TRANSFER;
+		else
+			transfer = remain_size;
+
+		if ( transfer > WRITE_TPMS * wait )
+			wait = (transfer / WRITE_TPMS + 1);
+
+        	while (HAL_BUSY == HAL_UART_Transmit(&huart3, (uint8_t *)&buf[write_size], transfer, wait) ) 
+			;
+
+		transferred = transfer - huart3.TxXferCount;
+		write_size += transferred;
+		remain_size -= transferred;
 	}
 }
 
