@@ -696,14 +696,13 @@ static int get_file_from_packet(struct tcp_packet3_rec *p, char **pp_name, char 
 
 	if ( pp_name )
 	{
-		*pp_name = (char*)malloc(filename_size);
+		*pp_name = strndup(buf, filename_size);
 		if ( *pp_name == NULL )
 		{
 			DPN("insufficient memory");
 			free(buf);
 			return 0;
 		}
-		memcpy(*pp_name, buf, filename_size);
 	}
 
 	file_size = convert_buf2short(p_file);
@@ -734,10 +733,331 @@ static int get_file_from_packet(struct tcp_packet3_rec *p, char **pp_name, char 
 	return file_size;
 }
 
+/// \return bigfile recv structure (dynamic allocated)
+static struct bigfile_recv_rec * alloc_bigfile_info_from_packet(struct tcp_packet3_rec *p)
+{
+	char *buf;
+	buf = extract_packet_contents(p);
+	if ( buf == NULL )
+		return NULL;
+
+	int contents_size = get_packet_plain_contents_size(p);
+
+	unsigned char id = *buf;
+
+	char * p_filename = buf + 1;
+	char * p_size;
+	p_size = memchr(p_filename, '\0', contents_size - 1);
+	if ( p_size == NULL )
+	{
+		DPN("DBG filename not found");
+		free(buf);
+		return NULL;
+	}
+	p_size++;
+	int filename_len = strlen(p_filename);
+
+	char * p_count;
+	p_count = memchr(p_size, '\0', contents_size - 1 - filename_len );
+	if ( p_count == NULL )
+	{
+		DPN("DBG file size not found");
+		free(buf);
+		return NULL;
+	}
+	p_count++;
+	if ( memchr(p_count, '\0', contents_size - 1 - filename_len ) == NULL )
+	{
+		DPN("DBG count not found");
+		free(buf);
+		return NULL;
+	}
+
+	unsigned int filesize = atoi(p_size);
+	unsigned int count = atoi(p_count);
+
+	struct bigfile_recv_rec * p_big;
+
+	int mem_size = sizeof(struct bigfile_recv_rec) + filename_len + filesize + 4;
+	p_big = (struct bigfile_recv_rec *)malloc(mem_size);
+	if ( p_big == NULL )
+	{
+		DPN("insufficient memory.");
+		free(buf);
+		return NULL;
+	}
+	memset(p_big, 0, mem_size);
+
+	p_big->id = id;
+	p_big->size = filesize;
+	p_big->count = count;
+	p_big->filename = p_big->buf;
+	p_big->contents = p_big->buf + filename_len + 1;
+
+	strncpy(p_big->filename, p_filename, filename_len + 1);
+
+	free(buf);
+	return p_big;
+}
+
+/// \param p_size (out) file size
+/// \param pp_name (out) file name (dynamic allocated)
+/// \param pp_file (out) file contents (dynamic allocated)
+/// \return 0 success 
+/// \return -1 error
+static int extract_bigfile(struct bigfile_recv_rec *p_big, unsigned int *p_size, char **pp_name, char **pp_file)
+{
+	unsigned int size = p_big->size;
+
+	if ( p_big->count != p_big->next ) 
+	{
+		DPN("DBG bigfile not received");
+		return -1;
+	}
+
+	if ( p_size ) 
+	{
+		*p_size = size;
+	}
+
+	if ( pp_name )
+	{
+		DPN("DBG copy filename");
+		*pp_name = strndup(p_big->filename, strlen(p_big->filename) + 1);
+		if ( *pp_name == NULL ) 
+		{
+			DPN("DBG insufficient memory");
+			return -1;
+		}
+	}
+
+	if ( pp_file )
+	{
+		DPN("DBG copy contents");
+		*pp_file = (char*)malloc(size + 1);
+		if ( *pp_file == NULL )
+		{
+			DPN("DBG insufficient memory");
+			return -1;
+		}
+		memcpy(*pp_file, p_big->contents, size);
+		(*pp_file)[size] = 0;
+	}
+	return 0;
+}
+
+/// \param p_size (out) return filesize
+/// \param pp_name (out) return filename if bigfile received
+/// \param pp_file (out) return file contents if bigfile received
+/// \return 0 big file received 
+/// \return 1 receiving big file
+/// \return -1 error 
+static int receive_bigfile_from_packet(struct tcp_packet3_rec *p, unsigned int * p_size, char **pp_name, char **pp_file)
+{
+	static struct bigfile_recv_rec *p_big = NULL;
+	static unsigned int remain_size = 0;
+	static unsigned int remain_count = 0;
+	static char *p_contents = NULL;
+
+	int ret;
+	char *buf;
+	int contents_size;
+	unsigned char id;
+	unsigned int frag_number;
+	unsigned int frag_size;
+
+	char *p_cur;
+	char *p_next;
+
+	if ( p == NULL )
+	{
+		// extract received bigfile 
+		if ( p_big && (p_size || pp_name || pp_file) )
+		{
+			ret = extract_bigfile(p_big, p_size, pp_name, pp_file);
+			if ( ret < 0 ) 
+				return ret;
+
+			if ( p_size && pp_name && pp_file )
+			{
+				free(p_big);
+				p_big = NULL;
+			}
+			return 0;
+		}
+		DPN("DBG need valid packet");
+		return -1;
+	}
+
+	if ( p->data_size == 0 )
+	{
+		DPN("DBG invalid packet (data_size)");
+		return -1;
+	}
+
+	if ( p->type == TCP_PACKET3_TYPE_BIGFILE_START )
+	{
+
+		if ( p_big != NULL )
+		{
+			DPN("DBG dup BIGFILE_START, reset");
+			free(p_big);
+		}
+
+		p_big = alloc_bigfile_info_from_packet(p);
+		if ( p_big == NULL )
+			return -1;
+
+		DPN("DBG BIGFILE_START, p_big allocated");
+		return 1;
+	}
+	else if ( p->type != TCP_PACKET3_TYPE_BIGFILE_FRAG )
+	{
+		DPN("DBG not BIGFILE_FRAG packet");
+		return -1;
+	}
+
+	if ( p_big == NULL )
+	{
+		// p_big deallocated. ignore packet
+		return -1;
+	}
+
+	buf = extract_packet_contents(p);
+	if ( buf == NULL )
+	{
+		DPN("DBG free p_big");
+		free(p_big);
+		p_big = NULL;
+		return -1;
+	}
+
+	contents_size = get_packet_plain_contents_size(p);
+	id = *buf;
+
+	if ( id != p_big->id )
+	{
+		DPN("DBG bigfile id mismatch");
+		free(buf);
+		return -1;
+	}
+
+	if ( p->type == TCP_PACKET3_TYPE_BIGFILE_END )
+	{
+		unsigned char crc_type = *(buf+1);
+
+		if ( remain_size > 0 || remain_count > 0 ) 
+		{
+			DPN("DBG invalid BIGFILE_END, need frag packet");
+			free(buf);
+			free(p_big);
+			p_big = NULL;
+			return -1;
+		}
+
+		if ( crc_type != TCP_PACKET3_BIGFILE_CHECKSUM_TYPE_NONE )
+		{
+			DPN("DBG invalid bigfile checksum ");
+			free(buf);
+			free(p_big);
+			p_big = NULL;
+			return -1;
+		}
+
+
+		// TO-DO : verify checksum
+		
+
+		DPN("DBG bigfile received");
+		free(buf);
+
+		DPN("DBG extract bigfile ");
+		ret = extract_bigfile(p_big, p_size, pp_name, pp_file);
+		if ( ret < 0 )
+			return ret;
+
+		// if filename & file contents are copied, deallocate p_big or keep.
+		if ( p_size && pp_name && pp_file )
+		{
+			free(p_big);
+			p_big = NULL;
+		}
+		return 0;
+	}
+
+	if ( p_big->next == 0 ) 
+	{
+		// first big file fragment
+		remain_size = p_big->size;
+		remain_count = p_big->count;
+		p_contents = p_big->contents;
+
+		DPN("DBG first BIGFILE_FRAG");
+	}
+
+	if ( remain_count <= 0 ) 
+	{
+		DPN("DBG exceed bigfile fragment count");
+		free(buf);
+		return -1;
+	}
+
+	p_cur = buf + 1; // fragment number
+	p_next = memchr(p_cur, '\0', contents_size - 1);
+	if ( p_cur == NULL )
+	{
+		DPN("DBG fragment number not found");
+		free(buf);
+		return -1;
+	}
+
+	frag_number = atoi(p_cur);
+	if ( frag_number != p_big->next )
+	{
+		DPN("DBG bigfile fragment number mismatch");
+		free(buf);
+		return -1;
+	}
+
+	p_next++;
+	frag_size = convert_buf2short(p_next);
+
+	if ( frag_size > remain_size ) 
+	{
+		DPN("DBG exceed bigfile file size");
+		free(buf);
+		return -1;
+	}
+
+	p_next += TCP_PACKET3_DATA_SIZE_LEN;
+	{
+		unsigned int calc_frag_size = contents_size - (int)(p_next - buf);
+
+		if ( frag_size != calc_frag_size )
+		{
+			DPN("DBG bigfile fragment size mismatch, fragment_size = %d, calc %d", frag_size, calc_frag_size);
+			free(buf);
+			return -1;
+		}
+	}
+	memcpy(p_contents, p_next, frag_size);
+
+	p_contents += frag_size;
+	remain_count--;
+	remain_size -= frag_size; 
+	p_big->next++;
+
+	return 1;
+}
+
 static void tcp_packet3_processor(int sock, struct list_head *phead)
 {
 	struct tcp_packet3_rec *p;
 	char *buf;
+
+	char *filename = NULL;
+	char *file = NULL;
+	unsigned int file_size = 0;
 
 	p = get_received_packet(phead);
 	if ( p == NULL )
@@ -789,23 +1109,28 @@ static void tcp_packet3_processor(int sock, struct list_head *phead)
 		break;
 
 	case TCP_PACKET3_TYPE_SMALLFILE:
-	{
-		char *filename = NULL;
-		char *file = NULL;
-		int file_size = 0;
-		
 		file_size = get_file_from_packet(p, &filename, &file); 
 		if ( file_size > 0 ) 
 		{
-			DPN("small file, filesize = %d", file_size);
-			DPN("%s", filename);
+			DPN("small file, filesize = %d, name = %s", file_size, filename);
 			console_writeb(file, file_size);
 
 			free(filename);
 			free(file);
 		}
+		break;
 
-	}
+	case TCP_PACKET3_TYPE_BIGFILE_START:
+	case TCP_PACKET3_TYPE_BIGFILE_FRAG:
+	case TCP_PACKET3_TYPE_BIGFILE_END:
+		if ( receive_bigfile_from_packet(p, &file_size, &filename, &file) == 0 ) 
+		{
+			DPN("bigfile, filesize = %d, name = %s", file_size, filename);
+			console_writeb(file, file_size);
+
+			free(filename);
+			free(file);
+		}
 		break;
 
 	default:

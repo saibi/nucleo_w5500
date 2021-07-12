@@ -41,6 +41,13 @@ enum tcp_packet3_constants {
 	TCP_PACKET3_TYPE_NONE = 0,
 	TCP_PACKET3_TYPE_CMDLINE, 
 	TCP_PACKET3_TYPE_SMALLFILE ,
+	TCP_PACKET3_TYPE_BIGFILE_START,
+	TCP_PACKET3_TYPE_BIGFILE_FRAG,
+	TCP_PACKET3_TYPE_BIGFILE_END,
+
+	// big file checksum type
+	TCP_PACKET3_BIGFILE_CHECKSUM_TYPE_NONE = 0,
+	TCP_PACKET3_BIGFILE_CHECKSUM_TYPE_CRC = 1,
 
 
 	// reserved characters
@@ -70,6 +77,17 @@ struct tcp_packet3_rec {
 	char header[TCP_PACKET3_HEADER_SIZE];
 	char data[ZERO_ARRAY_IDX]; // dynamic allocated
 };
+
+struct bigfile_recv_rec {
+	char *filename; 
+	char *contents;
+	unsigned int size;
+	unsigned int count;
+	unsigned int next;
+	unsigned char id;
+	char buf[ZERO_ARRAY_IDX];
+};
+
 
 
 int comm_tcp_client(int sock);
