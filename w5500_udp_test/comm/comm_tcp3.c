@@ -911,9 +911,9 @@ static int receive_bigfile_from_packet(struct tcp_packet3_rec *p, unsigned int *
 		DPN("DBG BIGFILE_START, p_big allocated");
 		return 1;
 	}
-	else if ( p->type != TCP_PACKET3_TYPE_BIGFILE_FRAG )
+	else if ( p->type != TCP_PACKET3_TYPE_BIGFILE_FRAG && p->type != TCP_PACKET3_TYPE_BIGFILE_END )
 	{
-		DPN("DBG not BIGFILE_FRAG packet");
+		DPN("DBG not BIGFILE_FRAG/END packet");
 		return -1;
 	}
 
